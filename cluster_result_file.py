@@ -1,11 +1,7 @@
 import argparse,os,json,gzip,codecs,sys
 import networkx as nx
 from operator import itemgetter
-sys.path.insert(0, "/home/avjves/oldsuomi")
 from text_encoder import TextEncoder
-from xml.etree import ElementTree as ET
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from natsort import natsorted
 import numpy
 
@@ -154,10 +150,7 @@ def cluster_by_similarity(raw_nodes):
 	return ready_clusters, ready_mappings
 
 def compare(c1, c2):
-	if c1[3] > 200:
-		hsp_extra = c1[3]*0.2
-	else:
-		hsp_extra = c1[3]*0.2
+	hsp_extra = c1[3]*0.2
 
 	if c2[1] <= c1[1] + hsp_extra:
 		if c2[2] >= c1[2] - hsp_extra and c2[2] <= c1[2] + hsp_extra:
@@ -259,7 +252,6 @@ def create_clusters_tsv(sub_graphs, type, out, examine, data_loc):
 		if examine:
 			print_nodes(f_nodes, encoder)
 		clusters[key] = info
-	#print()
 	return clusters
 
 def create_clusters_full(sub_graphs, type, out, examine, data_loc):
@@ -315,9 +307,6 @@ def clusters_to_tsv(clusters, out):
 	with codecs.open(out + "/clusters.tsv", "w") as csv_file:
 		csv_file.write("CLUSTER_ID\tAVGLENGTH\tOCCYEAR\tCOUNT\tTITLES\tTEXT\n")
 		for key, cluster_data in clusters.items():
-			#print(cluster_data)
-			#print(key)
-			#print("\t".join([key, cluster_data["AVGLENGTH"], cluster_data["OCCYEAR"], cluster_data["COUNT"], "||".join(cluster_data["TITLES"]), cluster_data["TEXT"]]) + "\n")
 			csv_file.write("\t".join([key, cluster_data["AVGLENGTH"], cluster_data["OCCYEAR"], cluster_data["COUNT"], "||".join(cluster_data["TITLES"]), cluster_data["TEXT"]]) + "\n")
 
 
@@ -329,7 +318,6 @@ if __name__ == "__main__":
 	parser.add_argument("-o", "--out", help="Output folder.", required=True)
 	parser.add_argument("-e", "--examine", action="store_true", help="Look at pairs", default=False)
 	parser.add_argument("--split", action="store_true", help="If the data was split, ids are split like ID__indexstart_indexend")
-	#parser.add_argument("-d", "--data", help="Location to original data file.", required=True)
 	parser.add_argument("-d", "--data_location", help="Location to the original data files.")
 	parser.add_argument("--subgraphs", help="Save subgraphs", action="store_true", default=False)
 	parser.add_argument("--tsv", help="Save TSV", action="store_true", default=False)

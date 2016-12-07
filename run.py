@@ -1,5 +1,4 @@
 import argparse, os, sys, json, gzip, codecs
-sys.path.insert(0, "/home/avjves/oldsuomi")
 from joblib import Parallel, delayed
 import multiprocessing
 from text_encoder import TextEncoder
