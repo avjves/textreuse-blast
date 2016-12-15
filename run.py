@@ -7,13 +7,14 @@ import subprocess
 
 class Blaster(object):
 
-	def __init__(self, data, output, size, threads, min_length, subgraph, tsv, full):
+	def __init__(self, data, output, size, threads, min_length, max_length, subgraph, tsv, full):
 		self.data_location = data
-		self.encoder = TextEncoder("prot")
+		self.encoder = TextEncoder()
 		self.output_folder = output
 		self.db_size = 0
 		self.threads = threads
 		self.min_length = min_length
+		self.max_length = max_length
 		self.flags = ""
 		if subgraph:
 			self.flags += " --subgraph"
@@ -23,16 +24,22 @@ class Blaster(object):
 			self.flags += " --full"
 
 	def run(self):
+		print("Encoding data...")
 		self.encode_data()
+		print("Making fasta file...")
 		self.make_fasta()
+		print("Making BLAST database...")
 		self.make_blast_db()
+		print("Running BLAST...")
 		self.run_blast()
+		print("Clustering results...")
 		self.cluster_results()
 
 	def encode_data(self):
 		files = []
 		if os.path.isdir(self.data_location):
 			files = os.listdir(self.data_location)
+			files = [f for f in files if not f.startswith(".")]
 		else:
 			dl = self.data_location.split("/")
 			filename = dl.pop(-1)
@@ -58,7 +65,10 @@ class Blaster(object):
 				encoded_data[key] = self.encoder.encode_text(text)
 		with gzip.open(self.output_folder + "/encoded/" + filename + ".gz", "wb") as gzip_file:
 			gzip_file.write(bytes(json.dumps(encoded_data), "utf-8"))
-		os.makedirs(self.output_folder + "/metadata")
+		try:
+			os.makedirs(self.output_folder + "/metadata")
+		except FileExistsError:
+			pass
 		with codecs.open(self.output_folder + "/metadata/" + str(multiprocessing.current_process()), "w") as json_file:
 			json.dump(info, json_file)
 
@@ -94,22 +104,30 @@ class Blaster(object):
 		os.makedirs(self.output_folder + "/results")
 		os.system("blastp -db " + self.output_folder + "/database/database -query " + self.output_folder + "/database/db.fsa -matrix BLOSUM62 -gapopen 3 -gapextend 11 -threshold 400 -word_size 7 -outfmt \"7 stitle qstart qend sstart send length ppos\" -num_threads " + str(self.threads) + " -evalue 1e-10 -out " + self.output_folder + "/results/result.tsv")
 
+	#def cluster_results(self):
+	#	os.system("python3 cluster_result_file.py -f " + self.output_folder + "/results/result.tsv -l " + self.min_length + " -t prot -d " + self.data_location + " -o " + self.output_folder + self.flags)
+
 	def cluster_results(self):
-		os.system("python3 cluster_result_file.py -f " + self.output_folder + "/results/result.tsv -l " + self.min_length + " -t prot -d " + self.data_location + " -o " + self.output_folder + self.flags)
+		os.system("python3 cluster_mcores.py -f " + self.output_folder + "/results/result.tsv -min " + str(self.min_length) + " -max " + str(self.max_length) + " -d " + self.data_location + " -o " + self.output_folder + " --num_of_processes " + str(self.threads) + self.flags)
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Software to find repetitions within texts using BLAST.")
-	parser.add_argument("-d", "--data", help='Location to either a data file or folder with JSON files. Json format: {"cluster_name": {"text": <text>, "year": <year>, "title": <title>, "cluster_2_name": {...}}', required=True)
-	parser.add_argument("--num_process", help="Number of processes to launch when encoding data, will require that the data is split into at least as many JSON files", default=1, type=int)
+	parser.add_argument("-d", "--data", help="Location to either a single JSON file or a folder with multiple JSON files.", required=True)
+	parser.add_argument("--num_process", help="Number of processes to launch when encoding data and to use with BLAST", default=1, type=int)
 	parser.add_argument("--out_folder", help="Output folder where all the data will be stored", required=True)
 	parser.add_argument("--min_length", help="Minimum length", default=0)
-	parser.add_argument("--subgraphs", action="store_true", help="Save subgraphs", default=False)
-	parser.add_argument("--tsv", action="store_true", help="Store TSV-file", default=False)
+	parser.add_argument("--max_length", help="Maximum length", default=1000000000)
+	parser.add_argument("--subgraphs", action="store_true", help="Store subgraphs. So just lists that have the name of the text and the encoded indexes of the hit.", default=False)
+	parser.add_argument("--tsv", action="store_true", help="Store TSV-file.", default=False)
 	parser.add_argument("--full", action="store_true", help="Store full clusters", default=False)
+	parser.add_argument("--compress", action="store_true", help="Compress data in memory while running. Slows down a lot, saves RAM, not working atm", default=False)
 	args = parser.parse_args()
 
-	blaster = Blaster(args.data, args.out_folder, 0, args.num_process, args.min_length, args.subgraphs, args.tsv, args.full)
+
+
+	blaster = Blaster(args.data, args.out_folder, 0, args.num_process, args.min_length, args.max_length, args.subgraphs, args.tsv, args.full)
 	blaster.run()
 
-	print("Removing temp data...")
-	os.system("rm -rf " + args.out_folder + "/database " + args.out_folder + "/encoded " + args.out_folder + "/metadata " + args.out_folder + "/results")
+	#print("Removing temp data...")
+	#os.system("rm -rf " + args.out_folder + "/database " + args.out_folder + "/encoded " + args.out_folder + "/metadata " + args.out_folder + "/results")
