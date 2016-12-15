@@ -439,8 +439,6 @@ def create_clusters_full(sub_graphs, out, metadata, examine, data_loc):
 	clusters = {}
 	done_i = 0
 	for key, sg in sub_graphs.items():
-		if done_i == 10:
-			break
 		sys.stdout.write("Clusters created: %d/%d \r" % (done_i, len(sub_graphs)))
 		sys.stdout.flush()
 		done_i += 1
