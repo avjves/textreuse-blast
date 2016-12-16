@@ -188,7 +188,7 @@ def read_data(location, min_length, max_length, compress, num_of_processes):
 	data_dictionary = {}
 	if os.path.isdir(location):
 		files = os.listdir(location)
-		files = [f for f in files if f.endswith(".gz")][0:1]
+		files = [f for f in files if f.endswith(".gz")]
 	else:
 		fl = location.split("/")
 		files = [fl.pop(-1)]
