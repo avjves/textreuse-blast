@@ -28,7 +28,7 @@ class QueueWorker(Process):
 				quot.put(data)
 				break
 
-	def read_tsv(self, filename, folder_loc, min_length, max_length, compress=False):
+	def read_tsv(self, filename, folder_loc, min_length, max_length, compress):
 		tsv_data = {}
 		if filename.endswith(".gz"):
 			with gzip.open(folder_loc + "/" + filename, "rb") as gzip_file:
@@ -96,6 +96,10 @@ class QueueWorker(Process):
 				new_hsps.append(hsp)
 		dicti[key] = new_hsps
 
+		if compress:
+			for key, value in dicti.items():
+				dicti[key] = zlib.compress(pickle.dumps(value))
+
 		return dicti
 
 
@@ -105,11 +109,12 @@ class QueueWorker(Process):
 				value = pickle.loads(zlib.decompress(value))
 			new_hsps = []
 			for hsp in value:
-				new_hsps.append([key + "___" + str(hsp[0]) + "_" + str(hsp[1]), hsp[5] + "___" + str(hsp[2]) + "_" + str(hsp[3])])
+				new_hsps.append(["%s___%d_%d" % (key, hsp[0], hsp[1]), "%s___%d_%d" % (hsp[5], hsp[2], hsp[3])])
+				#new_hsps.append([key + "___" + str(hsp[0]) + "_" + str(hsp[1]), hsp[5] + "___" + str(hsp[2]) + "_" + str(hsp[3])])
 			if compress:
 				data[key] = zlib.compress(pickle.dumps(new_hsps))
 			else:
-				data[key]= new_hsps
+				data[key] = new_hsps
 		return data
 
 	def get_nodes(self, key, value, compress):
@@ -423,7 +428,7 @@ def create_clusters_tsv(sub_graphs, out, metadata, examine, data_loc):
 
 		occtext_orig = get_orig_text(f_nodes[0][0], data_loc, f_nodes[0][5])
 
-		info["titles"] = info["titles"][0:31000]
+		info["titles"] = info["titles"][0:31000] ## limit, excel doesn't like too longs
 		info["text"]= " ".join(encoder.get_original_text(occtext_orig, f_nodes[0][1], f_nodes[0][2]).split()).strip().replace('"', ' ').replace("'", " ")[0:31000]
 		info["avglength"]= str(len(info["text"]))
 		if examine:
