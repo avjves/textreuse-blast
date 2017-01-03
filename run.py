@@ -7,7 +7,7 @@ import subprocess
 
 class Blaster(object):
 
-	def __init__(self, data, output, size, threads, min_length, max_length, subgraph, tsv, full):
+	def __init__(self, data, output, size, threads, min_length, max_length, subgraph, tsv, full, evalue, word_size):
 		self.data_location = data
 		self.encoder = TextEncoder()
 		self.output_folder = output
@@ -15,6 +15,8 @@ class Blaster(object):
 		self.threads = threads
 		self.min_length = min_length
 		self.max_length = max_length
+		self.evalue = evalue
+		self.word_size = word_size
 		self.flags = ""
 		if subgraph:
 			self.flags += " --subgraph"
@@ -102,7 +104,7 @@ class Blaster(object):
 
 	def run_blast(self):
 		os.makedirs(self.output_folder + "/results")
-		os.system("blastp -db " + self.output_folder + "/database/database -query " + self.output_folder + "/database/db.fsa -matrix BLOSUM62 -gapopen 3 -gapextend 11 -threshold 400 -word_size 7 -outfmt \"7 stitle qstart qend sstart send length ppos\" -num_threads " + str(self.threads) + " -evalue 1e-10 -out " + self.output_folder + "/results/result.tsv")
+		os.system("blastp -db " + self.output_folder + "/database/database -query " + self.output_folder + "/database/db.fsa -matrix BLOSUM62 -gapopen 3 -gapextend 11 -threshold 400 -word_size " + self.word_size + " -outfmt \"7 stitle qstart qend sstart send length ppos\" -num_threads " + str(self.threads) + " -evalue " + self.evalue + " -out " + self.output_folder + "/results/result.tsv")
 
 	#def cluster_results(self):
 	#	os.system("python3 cluster_result_file.py -f " + self.output_folder + "/results/result.tsv -l " + self.min_length + " -t prot -d " + self.data_location + " -o " + self.output_folder + self.flags)
@@ -118,6 +120,8 @@ if __name__ == "__main__":
 	parser.add_argument("--out_folder", help="Output folder where all the data will be stored", required=True)
 	parser.add_argument("--min_length", help="Minimum length", default=0)
 	parser.add_argument("--max_length", help="Maximum length", default=1000000000)
+	parser.add_argument("--evalue", help="E-value for BLAST. Lowering this will increase computing time, but will find shorter hits as well, default = 1e-8", default="1e-8")
+	parser.add_argument("--word_size", help="Word size for BLAST. Lowering this will increase computing time, but might help finding hits, allowed values 2-7", default="7")
 	parser.add_argument("--subgraphs", action="store_true", help="Store subgraphs. So just lists that have the name of the text and the encoded indexes of the hit.", default=False)
 	parser.add_argument("--tsv", action="store_true", help="Store TSV-file.", default=False)
 	parser.add_argument("--full", action="store_true", help="Store full clusters", default=False)
@@ -126,7 +130,7 @@ if __name__ == "__main__":
 
 
 
-	blaster = Blaster(args.data, args.out_folder, 0, args.num_process, args.min_length, args.max_length, args.subgraphs, args.tsv, args.full)
+	blaster = Blaster(args.data, args.out_folder, 0, args.num_process, args.min_length, args.max_length, args.subgraphs, args.tsv, args.full, args.evalue, args.word_size)
 	blaster.run()
 
 	#print("Removing temp data...")
