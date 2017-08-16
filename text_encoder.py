@@ -66,6 +66,8 @@ class TextEncoder(object):
 	## Requires the original text and the indexes from BLAST
 	def get_original_text(self, original_full_text, i_start, i_end):
 		i_start = int(i_start) - 1
+		if i_start == -1:
+			i_start = 0
 		i_end = int(i_end) - 1
 		original_full_text = " ".join(original_full_text.split())
 
@@ -82,7 +84,52 @@ class TextEncoder(object):
 
 			if letter != "X":
 				encoded_index += 1
-		try:
-			return original_full_text[indices[0]:indices[1]]
-		except IndexError:
-			return original_full_text[indices[0]:]
+		return original_full_text[indices[0]:indices[1]]
+
+	def get_original_text_and_indices(self, original_full_text, i_start, i_end):
+		i_start = int(i_start) - 1
+		if i_start == -1:
+			i_start = 0
+		i_end = int(i_end) - 2
+		original_full_text = " ".join(original_full_text.split())
+
+		x_text = self.encode_text_X_prot(original_full_text)
+		encoded_index = 0
+		indices = []
+		for index, letter in enumerate(x_text):
+			if encoded_index == i_start and len(indices) == 0:
+				indices.append(index)
+
+			elif encoded_index == i_end and len(indices) == 1:
+				indices.append(index)
+				break
+
+			if letter != "X":
+				encoded_index += 1
+		return original_full_text[indices[0]:indices[1]], indices[0], indices[1]
+
+	def get_original_text_indexes(self, original_full_text, i_start, i_end):
+			i_start = int(i_start)-1
+			if i_start == -1:
+				i_start = 0
+			i_end = int(i_end)-1
+			original_full_text = " ".join(original_full_text.split())
+
+			x_text = self.encode_text_X_prot(original_full_text)
+			encoded_index = 0
+			indices = []
+			for index, letter in enumerate(x_text):
+				if encoded_index == i_start and len(indices) == 0:
+					indices.append(index)
+
+				elif encoded_index == i_end and len(indices) == 1:
+					indices.append(index)
+					break
+
+				if letter != "X":
+					encoded_index += 1
+			#try:
+				#return original_full_text[indices[0]:indices[1]]
+			return [indices[0], indices[1]]
+			#except IndexError:
+			#	return [indices[0], None]
