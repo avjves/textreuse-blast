@@ -1,4 +1,4 @@
-import os, sys, json, gzip, logging, tarfile
+import os, sys, json, gzip, logging, tarfile, argparse
 import networkx as nx
 from operator import itemgetter
 from joblib import Parallel, delayed
@@ -21,8 +21,10 @@ class ParallelJobRunner:
 			tarf = tarfile.open(file_loc)
 			members = tarf.getmembers()
 			for member in members:
+				if not member.name.endswith(".tsv"): continue
 				memberfile = tarf.extractfile(member)
-				tsv_data = self.process_tsv(memberfile.read())
+				tsv_data = self.process_tsv(memberfile.read().decode())
+				data.update(tsv_data)
 		elif filename.endswith(".tsv"):
 			with open(file_loc, "r") as tsv_file:
 				tsv_data = self.process_tsv(tsv_file.read())
@@ -85,7 +87,6 @@ class ParallelJobRunner:
 			other_key = hsp[5]
 			nodes.setdefault(key, []).append(begin_node)
 			nodes.setdefault(other_key, []).append(end_node)
-		print(nodes)
 		return nodes
 	
 	def stringify(self, key, node):
@@ -174,7 +175,7 @@ class Clusterizer:
 		data = self.stringify_data(data)
 		mapping = self.calculate_node_similarities(nodes)
 		graph = self.fill_graph(data, mapping)
-		self.extract_clusters(graph)
+		self.extract_clusters(graph, 0)
 		
 		## Read the data in parallel, combine results into one dictionary, data = dictionary, key = id (file1), value = list of hsps
 	def read_data(self):
@@ -221,7 +222,7 @@ class Clusterizer:
 		for node_dict in node_dicts:
 			for key, value in node_dict.items():
 				if key in nodes:
-					nodes[key] = nodes[key].union(value)
+					nodes[key] += value
 				else:
 					nodes[key] = value
 		
@@ -277,12 +278,12 @@ class Clusterizer:
 				self.save_clusters(clusters, save_index, iteration)
 				save_index += 1
 				clusters.clear()
-		self.save_clusters(clusters, save_index)
+		self.save_clusters(clusters, save_index, iteration)
 		
 	def save_clusters(self, clusters, save_index, iteration):
-		if not os.path.exists("{}/clusters/iteration_{}".format(self.output_folder, iteration)):
-			os.makedirs("{}/clusters/iteration_{}".format(self.output_folder, iteration))
-		with gzip.open("{}/clusters/iteration_{}/clusters_{}.gz".format(self.output_folder, iteration, save_index), "wt") as gzf:
+		if not os.path.exists("{}/clusters/unfilled/iteration_{}".format(self.output_folder, iteration)):
+			os.makedirs("{}/clusters/unfilled/iteration_{}".format(self.output_folder, iteration))
+		with gzip.open("{}/clusters/unfilled/iteration_{}/clusters_{}.gz".format(self.output_folder, iteration, save_index), "wt") as gzf:
 			gzf.write(json.dumps(clusters))
 		
 class CluserizerVol2:
@@ -325,20 +326,82 @@ class CluserizerVol2:
 		logging.info("Starting combining clusters...")
 		self.combine_clusters(current_iteration)
 		
+	def gload(self, where):
+		with open(where, "rt") as gzf:
+			return json.loads(gzf.read())
+		
+	def create_mapping(self, clusters):
+		node_map = {} ## SHELVE? or w/e
+		doc_map = {}
+		for cluster_id, cluster_data in clusters.items():
+			nodes = cluster_data[0]
+			for node in nodes:
+				map[node] = cluster_id
+				node_doc, indexes = node.split("___")[0]
+				indexes = indexes.split("_")
+				doc_map[node_doc] = doc_map.get(node_doc, [])
+				doc_map.append(indexes)
+		return node_map, doc_map
+		
+		
+	def calculate_matching_nodes(start_map, iter_map):
+		matches={}
+		for doc_id, iter_data in iter_map:
+			doc_matches = []
+			if iter_id not in start_map: continue
+			else:
+				start_data = start_map[doc_id]
+				start_data.sort(key=itemgetter(1))
+				iter_data.sort(key=itemgetter(1))
+				
+				for i in range(0, len(iter_data)):
+					iter_node = iter_data[i]
+					for j in range(0, len(start_data)):
+						start_node = start_data[j]
+						comparison = self.compare(iter_node, start_node)
+						if comparison == 1:
+							doc_matches.append([iter_node, start_node])							
+						elif comparision == 0:
+							continue
+						else:
+							break
+			matches[doc_id] = matches		
+		
+		return matches
+	
+	def combine_matches(matchings, start_node, start_doc, iter_node, iter_map):
+		node_graph = nx.Graph()
+		for iter_node, start_node in matchings:
+			node_graph.add_edge([iter_node, start_node])
+		##Get connected components :)
+		
+		
 	def combine_clusters(self, iterations):
 		## Start by calculating maps for every iteration :) Use shelves to store
-		for i in range(0, iterations):
-			files = os.listdir("{}/clusters/iteration_{}	
-		#start_iteration = "{}/clusters/iteration_{}".format(self.output_folder, 1)
-		#start_files = os.listdir(start_iteration)
-		
-		#for i in range(1, iterations):
-		#	second_iteration = "{}/clusters/iteartion_{}".format(self.output_folder, i+1)
-		#	second_files = os.listdir(second_iteration)
-			
+		start = "{}/clusters/iteration_{}".format(self.output_folder, 0)
+		start_data = self.gload(start)
+		start_node_mapping, start_doc_mapping = self.create_mapping(start_data)
+		for i in range(1, iterations):
+			iter = "{}/clusters/iteration_{}".format(self.output_folder, iterations)
+			iter_data= self.gload(iter)
+			iter_node_mapping, iter_doc_mapping = self.create_mapping(iter_data)
+			matchings = self.calculate_matching_nodes(start_doc_mapping, iter_doc_mapping)
+			self.combine_matches(matchings, start_node_mapping, start_doc_mapping, iter_node_mapping, iter_doc_mapping)
+					
 
 
 ##TODO REMOVE THIS
 if __name__ == "__main__":
-	c = Clusterizer(output_folder="out_test", min_length=0, max_length=1000000, threads=1, node_similarity=0.90,  pre_split=True, compress=False)
+	parser = argparse.ArgumentParser(description="Clusterizing the results.")
+	parser.add_argument("--output_folder", help="Output folder", required=True)
+	parser.add_argument("--threads", help="Number of threads to use", default=1, type=int)
+	parser.add_argument("--min_length", help="Minimum length of found hit", default=1, type=int)
+	parser.add_argument("--max_length", help="Maximum length of found hit", default=100000, type=int)
+	parser.add_argument("--node_similarity", help="Minimum node similarity to be conidered the same", default=0.90)
+	parser.add_argument("--pre_split", help="If the data is presplit and needs to be flattened", default=False)
+	parser.add_argument("--compress", help="If the data should be compressed mid clusterizing", default=False)
+	
+	args = parser.parse_args()
+
+	c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress)
 	print(c.clusterize())

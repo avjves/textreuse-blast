@@ -28,7 +28,7 @@ class TextEncoder:
 	
 	## Calculate actual text
 	def decode_text(self, text, start_index, end_index):
-		start_index, end_index = int(start_index), int(end_index)
+		start_index, end_index = int(start_index)-1, int(end_index)-1
 		text = self.preprocess_text(text)
 		masked = self.encode_mask(text)
 		enc_index = 0

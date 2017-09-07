@@ -89,40 +89,43 @@ class MultipleBlastRunner:
 		self.queries_per_iter = queries_per_iter
 		self.text_count = text_count
 		self.db_loc = output_folder + "/db/textdb"
+		
 
 	def run(self):
 		logging.info("Running software...")
-		self.initial_setup(self.output_folder)
+		self.make_iteration_folders()
 		self.run_blast()
 		self.compress_results()
 		logging.info("Blasting done...")
+		
+
+	def make_iteration_folders(self):
+		folders_to_make = ["{}/info/iter_{}", "{}/batches/iter_{}"]
+		for folder in folders_to_make:
+			if not os.path.exists(folder.format(self.output_folder, self.iter)):
+				os.makedirs(folder.format(self.output_folder, self.iter))
 
 	def generate_positive_gi_list(self, index):
 		begin = 1 + self.iter*self.queries_per_iter
-		with open("{}/info/iter_{}_pos_gi.txt".format(self.output_folder, self.iter), "w") as gilist:
+		with open("{}/info/iter_{}/pos_gi.txt".format(self.output_folder, self.iter), "w") as gilist:
 			for i in range(begin+index, self.text_count+1):
 				gilist.write("{}\n".format(i))
-		self.gi_loc = "{}/info/iter_{}_pos_gi.txt".format(self.output_folder, self.iter)
+		self.gi_loc = "{}/info/iter_{}/pos_gi.txt".format(self.output_folder, self.iter)
 
 	def make_query_file(self, index):
 		gi_index = 1 + self.iter*self.queries_per_iter + index
-		with open(self.output_folder + "/info/iter_{}_query.fsa".format(self.iter), "w") as query_file:
+		with open(self.output_folder + "/info/iter_{}/query.fsa".format(self.iter), "w") as query_file:
 			subprocess.call("blastdbcmd -db {} -entry {}".format("{}/db/textdb".format(self.output_folder), gi_index).split(" "), stdout=query_file)
-		self.query_loc = "{}/info/iter_{}_query.fsa".format(self.output_folder, self.iter)
+		self.query_loc = "{}/info/iter_{}/query.fsa".format(self.output_folder, self.iter)
 
 	def run_blast(self):
 		logging.info("Running BLAST...")
 		for i in range(0, self.queries_per_iter):
+			logging.info("Running query: #{}".format(i))
 			self.generate_positive_gi_list(i)
 			self.make_query_file(i)
-			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
+			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/iter_" + str(self.iter) + "/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
 
 	def compress_results(self):
 		logging.info("Compressing results...")
-		subprocess.call("tar -zcf {}/iter_{}_batches.gz {}/iter_{}_batch* --remove-files".format(self.output_folder + "/batches", self.iter, self.output_folder + "/batches", self.iter))
-
-
-##TODO REMOVE THIS
-if __name__ == "__main__":
-	runner = MultipleBlastRunner("testf", 0.01, 7, 24, 0, 10, 100, 50000)
-	runner.run()
+		subprocess.call("tar -zcf {}/iter_{}.tar.gz  -C {}/iter_{} . --remove-files".format(self.output_folder + "/batches", self.iter, self.output_folder + "/batches", self.iter).split(" "))
