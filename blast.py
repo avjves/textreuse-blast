@@ -1,4 +1,4 @@
-import os, json, sys, logging, subprocess
+import os, json, sys, logging, subprocess, gzip
 from joblib import Parallel, delayed
 from text_encoder import TextEncoder
 from data_encoder import DataEncoder
@@ -10,21 +10,23 @@ def make_directory(self, where):
 
 class SingleBlastRunner:
 
-	def __init__(self, data, output_folder, e_value, word_size, threads, language="FIN"):
+	def __init__(self, data, output_folder, e_value, word_size, threads, text_count, language="FIN"):
 		self.data_location=data
 		self.output_folder=output_folder
 		self.e_value=e_value
 		self.word_size=word_size
 		self.threads=threads
+		self.text_count = text_count
 		self.data_encoder = DataEncoder(data, output_folder, threads, language)
+
 
 
 	## Run software in a single process
 	def run(self):
 		logging.info("Running software...")
-		self.initial_setup(self.output_folder)
-		self.data_encoder.encode_data()
-		self.generate_db()
+	#	self.initial_setup(self.output_folder)
+		#self.data_encoder.encode_data()
+		#self.generate_db()
 		self.run_blast()
 		logging.info("BLASTing done...")
 
@@ -40,7 +42,7 @@ class SingleBlastRunner:
 			gi = 1
 			encoded_files = os.listdir(self.output_folder + "/encoded")
 			for filename in encoded_files:
-				with open(self.output_folder + "/encoded/" + filename, "r") as encoded_file:
+				with gzip.open(self.output_folder + "/encoded/" + filename, "rt") as encoded_file:
 					for line in encoded_file:
 						block = json.loads(line)
 						id = block["id"]
@@ -58,11 +60,10 @@ class SingleBlastRunner:
 	## Run blast, one query at a time
 	def run_blast(self):
 		logging.info("Running BLAST...")
-		for i in range(1, self.text_count+1):
+		for i in range(1, self.text_count):
 			self.generate_positive_gi_list(i)
 			self.make_query_file(i)
-			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
-
+			subprocess.call(["blastp", "-db", self.output_folder + "/db/textdb", "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
 	## List of queries to compare against, so two queries will never be queried against each other twice
 	def generate_positive_gi_list(self, index):
 		with open(self.output_folder + "/info/pos_gi.txt", "w") as gi_list:
@@ -89,7 +90,7 @@ class MultipleBlastRunner:
 		self.queries_per_iter = queries_per_iter
 		self.text_count = text_count
 		self.db_loc = output_folder + "/db/textdb"
-		
+
 
 	def run(self):
 		logging.info("Running software...")
@@ -97,7 +98,7 @@ class MultipleBlastRunner:
 		self.run_blast()
 		self.compress_results()
 		logging.info("Blasting done...")
-		
+
 
 	def make_iteration_folders(self):
 		folders_to_make = ["{}/info/iter_{}", "{}/batches/iter_{}"]
@@ -113,14 +114,14 @@ class MultipleBlastRunner:
 		self.gi_loc = "{}/info/iter_{}/pos_gi.txt".format(self.output_folder, self.iter)
 
 	def make_query_file(self, index):
-		gi_index = 1 + self.iter*self.queries_per_iter + index
+		gi_index = 0 + self.iter*self.queries_per_iter + index
 		with open(self.output_folder + "/info/iter_{}/query.fsa".format(self.iter), "w") as query_file:
 			subprocess.call("blastdbcmd -db {} -entry {}".format("{}/db/textdb".format(self.output_folder), gi_index).split(" "), stdout=query_file)
 		self.query_loc = "{}/info/iter_{}/query.fsa".format(self.output_folder, self.iter)
 
 	def run_blast(self):
 		logging.info("Running BLAST...")
-		for i in range(0, self.queries_per_iter):
+		for i in range(1, self.queries_per_iter+1):
 			logging.info("Running query: #{}".format(i))
 			self.generate_positive_gi_list(i)
 			self.make_query_file(i)
@@ -128,4 +129,4 @@ class MultipleBlastRunner:
 
 	def compress_results(self):
 		logging.info("Compressing results...")
-		subprocess.call("tar -zcf {}/iter_{}.tar.gz  -C {}/iter_{} . --remove-files".format(self.output_folder + "/batches", self.iter, self.output_folder + "/batches", self.iter).split(" "))
+		subprocess.call("tar -zcf {}/iter_{}.tar.gz -C {}/iter_{} . --remove-files --warning none".format(self.output_folder + "/batches", self.iter, self.output_folder + "/batches", self.iter).split(" "))
