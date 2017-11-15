@@ -33,10 +33,16 @@ if __name__ == "__main__":
 	parser.add_argument("--text_count", help="Text count", type=int, required=True)
 	parser.add_argument("--qpi", help="Queries per iteration", type=int, required=True)
 
+	parser.add_argument("--preset", help="Some presets for certain systems.")
 	parser.add_argument("--full", help="Save full data.")
 	parser.add_argument("--language")
 
 	args = parser.parse_args()
+
+	if "preset" in args:
+		if args.preset == "taito":
+			print("Using preset: Taito")
+			args.local_folder = os.environ.get("TMPDIR") + "/" + os.environ.get("SLURM_JOBID") + "/" + args.output_folder.split("/")[-1]
 
 	if "local_folder" in args:
 		copy_output_folder_to_local(args.output_folder, args.local_folder)
