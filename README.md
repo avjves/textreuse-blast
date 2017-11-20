@@ -41,9 +41,9 @@ Now you are ready to run.
 Your input data needs to be gzipped files in a folder. Each gzipped file should contain part of your data, where each document will be represented in JSON format on its own line. Each document can contain arbitrary amount of metadata that will be added to the found clusters at the end, but the bare bone data structure has fields text and doc_id. Text contains your text and doc_id is the name of the document. 
 Example could look like this:
 ```
-{"title": "Newspaper X", "date": "1907-03-18", "doc_id": "newspaper_X_1907_03_18", "text": <text>}
-{"title": "Newspaper Y", "date": "1907-03-19", "doc_id":
-"newspaper_Y_1907_03_19", "text": <text>}
+{"title": "NewspaperX", "date": "1907-03-18", "doc_id": "newspaperX_1907_03_18", "text": <text>}
+{"title": "NewspaperY", "date": "1907-03-19", "doc_id":
+"newspaperY_1907_03_19", "text": <text>}
 ```
 Here, title and date fields are optional metadata. The data should be split into at least as many files as your available cores, so that they can be read in parallel.
 
@@ -86,7 +86,7 @@ blast.py arguments:
 
 After running all batches, you need to copy all the results into *batches* folder in *output_folder*, if you didn't set this in the previous step.
 
-####3rd phase: running clusterizer.py
+#### 3rd phase: running clusterizer.py
 
 Clusterizer.py reads in the batches. This can be run in two ways, as well. Either load everything into memory at once, or clusterize the data in batches. The style is of course faster, but takes more memory.
 
