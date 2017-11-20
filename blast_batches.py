@@ -17,6 +17,8 @@ def delete_local_data(local_folder):
 	rmtree(local_folder)
 
 def copy_local_data_back(output_folder, batch_folder, iter):
+	if not os.path.exists(batch_folder):
+		os.path.makedirs(batch_folder)
 	copyfile(output_folder + "/batches/iter_{}.tar.gz".format(iter), batch_folder + "/iter_{}.tar.gz".format(iter))
 
 if __name__ == "__main__":
@@ -29,13 +31,9 @@ if __name__ == "__main__":
 	parser.add_argument("--e_value", help="E-value for BLAST. Lowering this will increase computing time, but will also find more hits and shorter", default=0.001)
 	parser.add_argument("--word_size", help="Word size for BLAST. Basically character n-gram size.", default=6)
 	parser.add_argument("--iter", help="Current iteration", type=int, required=True)
-	parser.add_argument("--max_iter", help="Num of iterations", type=int, required=True)
 	parser.add_argument("--text_count", help="Text count", type=int, required=True)
 	parser.add_argument("--qpi", help="Queries per iteration", type=int, required=True)
-
 	parser.add_argument("--preset", help="Some presets for certain systems.")
-	parser.add_argument("--full", help="Save full data.")
-	parser.add_argument("--language")
 
 	args = parser.parse_args()
 
@@ -46,11 +44,11 @@ if __name__ == "__main__":
 
 	if "local_folder" in args:
 		copy_output_folder_to_local(args.output_folder, args.local_folder)
-		runner = MultipleBlastRunner(output_folder=args.local_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, max_iter=args.max_iter, queries_per_iter=args.qpi, text_count=args.text_count)
+		runner = MultipleBlastRunner(output_folder=args.local_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count)
 		runner.run()
 		copy_local_data_back(args.local_folder, args.batch_folder, args.iter)
 		delete_local_data(args.local_folder)
 	else:
-		runner = MultipleBlastRunner(output_folder=args.output_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, max_iter=args.max_iter, queries_per_iter=args.qpi, text_count=args.text_count)
+		runner = MultipleBlastRunner(output_folder=args.output_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count)
 		runner.run()
 		copy_local_data_back(args.output_folder, args.batch_folder, args.iter)

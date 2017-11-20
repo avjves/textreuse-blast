@@ -80,13 +80,12 @@ class SingleBlastRunner:
 ## When running the software in batches
 class MultipleBlastRunner:
 
-	def __init__(self, output_folder, e_value, word_size, threads, iter, max_iter, queries_per_iter, text_count):
+	def __init__(self, output_folder, e_value, word_size, threads, iter, queries_per_iter, text_count):
 		self.output_folder=output_folder
 		self.e_value=e_value
 		self.word_size=word_size
 		self.threads=threads
 		self.iter = iter
-		self.max_iter = max_iter
 		self.queries_per_iter = queries_per_iter
 		self.text_count = text_count
 		self.db_loc = output_folder + "/db/textdb"
