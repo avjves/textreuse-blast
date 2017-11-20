@@ -62,8 +62,8 @@ Data preparer has multiple arguments that must be specified:
 | `data_location` | Location of the gzipped data files. |
 | `output_location` | Output folder for the data. This folder will be used in subsequent parts as well. |
 | `threads` | Number of threads to use. |
-| `language` | Which language the data is in. Currently supports "ENG" and "FIN" out of the box. Others must be manually added.
-| `split_size` | The size of the splits, if the document should be split into parts. Otherwise, ignore. This is useful if the documents have vastly different lengths, so splitting the data will allow each batch to be approximately same sized.
+| `language` | Which language the data is in. Currently supports "ENG" and "FIN" out of the box. Others must be manually added. |
+| `split_size` | The size of the splits, if the document should be split into parts. Otherwise, ignore. This is useful if the documents have vastly different lengths, so splitting the data will allow each batch to be approximately same sized. |
 
 Data preparer procudes databases that BLAST can use to compare the data.
 #### 2nd phase: blast_batches.py
@@ -74,7 +74,7 @@ blast.py arguments:
 | --- | --- |
 | `output_folder` | This is the location of the folder that data_preparer produced.  |
 | `local_folder` | Folder where to copy the data first. This is useful if you're running the data on cluster computers and want to copy the data to the cluster node first. (i.e. shared_location --> local_location) |
-| `batch_folder` | Folder where to copy the results. This can be set to be the batches folder in output_folder, if you are not copying the the folder to local nodes or don't mind unnecessary transfers.  
+| `batch_folder` | Folder where to copy the results. This can be set to be the batches folder in output_folder, if you are not copying the the folder to local nodes or don't mind unnecessary transfers. | 
 | `threads` | Number of threads to use. |
 | `e_value` | Setting for BLAST. This should be set to be very low. Lowering this value will decrease the required to computational time, but will also cut down shorter hits from the results. Default 1e-15. |
 | `word_size` | Setting for BLAST. This is the size of word seeds to use to when finding repeated passages. Lowering will increase computation time, but if the data quality is bad, it might be necessary. Default=6. Range=2-7 |
@@ -95,7 +95,7 @@ clusterizer.py arguments:
 | `output_folder` | This is the location of the folder that data_preparer produced. |
 | `min_length` | Minimum length of hits to consider. |
 | `max_length` | Maximum length of hits to consider. |
-| `node_similarity` | The minimum similarity between two nodes in one document to consider them to be the same. I.e. how much the must overlap. Default 0.90.
+| `node_similarity` | The minimum similarity between two nodes in one document to consider them to be the same. I.e. how much the must overlap. Default 0.90. |
 | `pre_split` | If the data is pre_split and you want to combine the parts back into one.|
 | `files_per_iter` | Files to read per iteration. Only used if ver = 2.|
 | `files_per_cluster`| Clusters per file saved. |
