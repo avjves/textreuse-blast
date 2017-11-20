@@ -70,6 +70,7 @@ Data preparer procudes databases that BLAST can use to compare the data.
 This is the part that should be ran in batches on cluster computers i.e. if they're available, as this is where the actual computation happens. 
 
 blast.py arguments:
+
 | Argument | Description |
 | --- | --- |
 | `output_folder` | This is the location of the folder that data_preparer produced.  |
@@ -90,6 +91,7 @@ After running all batches, you need to copy all the results into *batches* folde
 Clusterizer.py reads in the batches. This can be run in two ways, as well. Either load everything into memory at once, or clusterize the data in batches. The style is of course faster, but takes more memory.
 
 clusterizer.py arguments:
+
 | Argument | Description |
 | --- | --- |
 | `output_folder` | This is the location of the folder that data_preparer produced. |
