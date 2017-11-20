@@ -42,8 +42,7 @@ Your input data needs to be gzipped files in a folder. Each gzipped file should 
 Example could look like this:
 ```
 {"title": "NewspaperX", "date": "1907-03-18", "doc_id": "newspaperX_1907_03_18", "text": <text>}
-{"title": "NewspaperY", "date": "1907-03-19", "doc_id":
-"newspaperY_1907_03_19", "text": <text>}
+{"title": "NewspaperY", "date": "1907-03-19", "doc_id": "newspaperY_1907_03_19", "text": <text>}
 ```
 Here, title and date fields are optional metadata. The data should be split into at least as many files as your available cores, so that they can be read in parallel.
 
