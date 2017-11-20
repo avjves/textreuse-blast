@@ -40,6 +40,22 @@ class ParallelJobRunner:
 			raise TypeError("Wrong file format.")
 		return data
 
+	def read_data_parallel_iterations(self, filename, file_index, min_alignment_score, file_style):
+		data = {}
+		if file_style == "clustered":
+			with gzip.open(filename, "rt") as gzf:
+				gd = json.loads(gzf.read())
+			for key, value in gd.items():
+				nodes = value[0]
+				start_node = nodes.pop(0)
+				start_node_doc = start_node.split("___")[0]
+				data[start_node_doc] = data.get(start_node_doc, [])
+				for node in nodes:
+					data[start_node_doc].append([start_node, node])
+		else:
+			data = self.read_data_parallel(filename, file_index, min_alignment_score)
+		return data
+
 		## Read the actual TSV file
 	def process_tsv(self, data, min_alignment_score):
 		tsv_data = {}
@@ -65,17 +81,19 @@ class ParallelJobRunner:
 		real_hsps = []
 		for sub_key_data in value:
 			sub_key = sub_key_data[0]
-			query_index_start = int(sub_key.split("__")[1].split("_")[0])
+			query_index_start = int(sub_key.split("___")[0].split("__")[-1].split("_")[0])
+			#query_index_start = int(sub_key.split("__")[1].split("_")[0])
 			query_extra = 0
 			if query_index_start != 0: ## To get actual offset values
 				query_extra = query_index_start
 
 			for hsp in sub_key_data[1]:
 				q_start, q_end, h_start, h_end, length, other_key = hsp
-				hit_index_start = int(other_key.split("__")[1].split("_")[0])
+				#hit_index_start = int(other_key.split("__")[1].split("_")[0])
+				hit_index_start = int(other_key.split("___")[0].split("__")[-1].split("_")[0])
 				hit_extra = 0
 				if hit_index_start != 0: ## Same here
-					hit_extra = hit_ind
+					hit_extra = hit_index_start
 
 				## Adding the offsets to the values
 				q_start += query_extra
@@ -83,13 +101,20 @@ class ParallelJobRunner:
 				h_start += hit_extra
 				h_end += hit_extra
 				other_key = other_key.split("__")[0]
-				real_hsps.append([q_start, q_end, h_start, h_end, other_key])
+				real_hsps.append([q_start, q_end, h_start, h_end, length, other_key])
 		flattened_data[key] = real_hsps
 		return flattened_data
 
 	def find_nodes_parallel(self, key, value):
 		nodes = {}
 		for hsp in value:
+			if type(hsp[0]) == str:
+				new_hsp = []
+				new_hsp += [int(v) for v in hsp[0].split("___")[1].split("_")]
+				new_hsp += [int(v) for v in hsp[1].split("___")[1].split("_")]
+				new_hsp.append(None) ## Skip length
+				new_hsp.append(hsp[1].split("___")[0])
+				hsp = new_hsp
 			begin_node = hsp[0:2]
 			end_node = hsp[2:4]
 			other_key = hsp[5]
@@ -133,12 +158,6 @@ class ParallelJobRunner:
 					continue
 
 			new_node = self.stringify(key, self.calculate_new_node(new_node_nodes)) ## already stringified
-		#	if len(new_node_nodes) > 1:
-				#print(new_node_nodes)
-			#new_nodes.append(new_node)
-
-			## TODO after testing, only add nodes that are centroid of more than 1 to mapping, save space
-			#
 			for node in new_node_nodes:
 				mapping[self.stringify(key, node)] = new_node
 
@@ -147,7 +166,6 @@ class ParallelJobRunner:
 
 
 	def similarity(self, n1, n2):
-		#print(n1, n2)
 		lengths = n1[1] - n1[0], n2[1] - n2[0]
 
 		extra = min(lengths) * (1-self.node_similarity)
@@ -158,17 +176,9 @@ class ParallelJobRunner:
 			if n2[1] < n1[1]:
 				overlap - n1[1]-n2[1]
 			if overlap/max(lengths) > self.node_similarity:
-			#	print(n1, n2, "Woo")
 				return 1
 			else:
 				return 0
-			#overlap = n2[0]-n1[0]
-			#overlap = max(n1[0], n2[0]) + min(n1[1], n2[1])
-			#if overlap < extra:
-			#	return 0
-			#else:
-			#	print(n1, n2, "WOO")
-			#	return 1
 
 	def calculate_new_node(self, new_nodes):
 		starts = []
@@ -181,7 +191,7 @@ class ParallelJobRunner:
 
 class Clusterizer:
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, clusters_per_file, min_alignment_score, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -189,8 +199,8 @@ class Clusterizer:
 		self.pre_split = pre_split
 		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, compress)
 		self.community = CommunityDetector()
-		self.clusters_per_file = 1000
-		self.min_alignment_score = 0.65
+		self.clusters_per_file = clusters_per_file
+		self.min_alignment_score = min_alignment_score
 
 	def clusterize(self):
 		logging.info("Starting clusterizing, using {} cores...".format(self.threads))
@@ -256,24 +266,18 @@ class Clusterizer:
 		## Make strings from the hsps values
 	def stringify_data(self, data):
 		logging.info("Stringifying data...")
-
 		stringified_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.stringify_data_parallel)(key, value) for key, value in data.items())
 		data = {key: value for data_dictionary in stringified_dicts for key, value in data_dictionary.items()}
-
 		return data
 
 
 		## Calculate mean / centroid nodes, so two nodes that are almost same will be considered one
-		## TODO, on disk
 	def calculate_node_similarities(self, nodes):
 		logging.info("Calculating node similarities...")
-
 		maps = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.calculate_node_similarities_parallel)(key, value) for key, value in nodes.items())
 		mapping = {}
-		##TODO, if nodes unncessary, remove
 		for data_map in maps:
 			mapping.update(data_map)
-
 		return mapping
 
 
@@ -311,7 +315,7 @@ class Clusterizer:
 
 class ClusterizerVol2(Clusterizer):
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, files_per_cluster, min_alignment_score, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -320,216 +324,142 @@ class ClusterizerVol2(Clusterizer):
 		self.node_similarity = node_similarity
 		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, compress)
 		self.community = CommunityDetector()
-		self.clusters_per_file = 1000
-		self.files_per_iteration = 50
+		self.clusters_per_file = files_per_cluster
+		self.files_per_iteration = int(files_per_iteration)
+		self.minimum_alignment_score = min_alignment_score
 
 	def clusterize(self):
 		logging.info("Starting clusterizing, using {} cores...".format(self.threads))
 		current_iteration = 0
-		file_count = int(self.get_file_counts())
-		file_count = 150
+		current_round = 0
+		while True:
+			file_count = int(self.get_file_counts(current_round))
+			if current_round == 0:
+				self.clusterize_current_files(current_round, file_count)
+			else:
+				self.clusterize_current_files(current_round, file_count)
+			current_round += 1
+			if not self.must_continue_batches(current_round):
+				break
+
+	def clusterize_current_files(self, current_round, file_count):
+		current_iteration = 0
 		for i in range(0, file_count, self.files_per_iteration):
 			logging.info("Clusterizing {}/{} files, iteration {}, {} per iteration...".format(i, file_count, current_iteration, self.files_per_iteration))
-			data = self.read_data(i)
-			data = self.flatten_data(data)
+			data = self.read_data(current_iteration, current_round)
+			if current_round == 0:
+				data = self.flatten_data(data)
+				data = self.stringify_data(data)
 			nodes = self.find_nodes(data)
-			data = self.stringify_data(data)
 			mapping = self.calculate_node_similarities(nodes)
 			graph = self.fill_graph(data, mapping)
-			self.extract_clusters(graph, i)
+			self.extract_clusters(graph, current_iteration, current_round)
+			data, nodes, mapping, graph = [], [], [], [] ## CLEAR RAM
 			current_iteration += 1
-		logging.info("Clusterized all files...")
-		logging.info("Starting combining clusters...")
-		self.combine_clusters(current_iteration)
 
-	def get_file_counts(self):
-		files = os.listdir(self.output_folder + "/batches/")
-		return len(files)
-
-	def read_data(self, iteration):
-		logging.info("Reading data...")
-		files = natsorted(os.listdir(self.output_folder + "/batches"))
-		files = files[iteration*self.files_per_iteration:(iteration+1)*self.files_per_iteration]
-		datas = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.read_data_parallel)(filename, file_index) for file_index, filename in enumerate(files))
-		data = {key: value for data_dictionary in datas for key, value in data_dictionary.items()}
-		return data
-
-	def gload(self, where):
-		with gzip.open(where, "rt") as gzf:
-			return json.loads(gzf.read())
-
-
-	def compare(self, c1, c2):
-		lengths = [c1[1]-c1[0], c2[1]-c2[0]]
-		maxlen = max(lengths)
-		extra = maxlen*0.1
-		if c2[1] > c1[1] + extra:
-				return -1
-		else:
-				overlap = set(range(c1[0], c1[1])).intersection(set(range(c2[0], c2[1])))
-				if len(overlap)/maxlen >= self.node_similarity:
-						return 1
+	def find_nodes(self, data):
+		logging.info("Finding nodes...")
+		node_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.find_nodes_parallel)(key, value) for key, value in data.items())
+		nodes = {}
+		for node_dict in node_dicts:
+			for key, value in node_dict.items():
+				if key in nodes:
+					nodes[key] += value
 				else:
-						return 0
-
-
-		##TODO FIX! n2 is the one changing, not n1
-	def compare_v2(self, n1, n2):
-		lengths = [n1[1]-n1[0], n2[1]-n2[0]]
-		maxlen = max(lengths)
-		extra_per_side = maxlen*(1-self.node_similarity)/2
-		if n1[0] > n2[1]:
-			return -1
-		else:
-			## too small, too, big, too little in the middle ~~
-			if n1[0] < n2[0]-extra_per_side or n1[1] > n2[1]+extra_per_side or n2[0] > n1[0]+extra_per_side or n2[1] < n1[1]-extra_per_side:
-				return 0
-			else:
-				return 1
-
-
-	def create_mapping(self, clusters, identifier):
-		node_map = {} ## SHELVE? or w/e
-		doc_map = {}
-		for cluster_id, cluster_data in clusters.items():
-			nodes = cluster_data[0]
-			for node in nodes:
-				node_map[node] = identifier + "_" + cluster_id
-				node_doc, indexes = node.split("___")
-				indexes = [int(val) for val in indexes.split("_")]
-				doc_map[node_doc] = doc_map.get(node_doc, [])
-				doc_map[node_doc].append(indexes)
-		return node_map, doc_map
-
-
-	def calculate_matching_nodes(self, start_map, iter_map):
-		matches={}
-		for iter_id, iter_data in iter_map.items():
-			doc_matches = []
-			if iter_id not in start_map: continue
-			else:
-				start_data = start_map[iter_id]
-				start_data.sort(key=itemgetter(0))
-				iter_data.sort(key=itemgetter(0))
-
-				for i in range(0, len(iter_data)):
-					iter_node = iter_data[i]
-					for j in range(0, len(start_data)):
-						start_node = start_data[j]
-						comparison = self.compare_v2(iter_node, start_node)
-						if comparison == 1:
-							doc_matches.append([iter_node, start_node])
-						elif comparison == 0:
-							continue
-						else:
-							break
-			matches[iter_id] = doc_matches
-
-		return matches
-
-	def process_new_nodes(self, nodes):
-		## combine nodes from same doc :)
-		print(len(nodes))
+					nodes[key] = value
 		return nodes
 
-	def combine_matches(self, matchings, start_node_map, start_doc, start_clusters, iter_node_map, iter_map, iter_clusters, iteration):
-		node_graph = nx.Graph()
-		cluster_graph = nx.Graph()
-		new_cluster_count = 0
-		for iter_node, matches in matchings.items():
-			for match in matches:
-				match_1 = "{}___{}_{}".format(iter_node, match[0][0], match[0][1])
-				match_2 = "{}___{}_{}".format(iter_node, match[1][0], match[1][1])
-				c1 = iter_node_map[match_1]
-				c2 = start_node_map[match_2]
-				cluster_graph.add_edge(c1, c2)
-				#node_graph.add_edge("{}___{}".format(iter_node, match[0]), "{}___{}".format(iter_node, match[1]))
+	def must_continue_batches(self, current_round):
+		if current_round == 0:
+			folders = os.listdir(self.output_folder + "/batches")
+		else:
+			folders = os.listdir(self.output_folder + "/clusters/unfilled")
+			folders = [f for f in folders if "round_{}_".format(current_round-1) in f]
+		if len(folders) == 1:
+			return False
+		else:
+			return True
 
-		for cluster_sg in nx.connected_component_subgraphs(cluster_graph):
-			clusters_to_combine = cluster_sg.nodes()
+	def get_file_counts(self, current_round):
+		if current_round == 0:
+			files = os.listdir(self.output_folder + "/batches")
+		else:
+			files = [f for f in os.listdir(self.output_folder + "/clusters/unfilled/") if "round_{}".format(current_round-1) in f]
+		return len(files)
 
-			new_nodes = []
-			for cluster in clusters_to_combine:
-				noident = cluster.split("_", 1)[1]
-				if "iter" in cluster:
-					new_nodes += iter_clusters[noident][0]
-					del iter_clusters[noident]
-				else:
-					new_nodes += start_clusters[noident][0]
-					del start_clusters[noident]
-			new_nodes = self.process_new_nodes(new_nodes)
-			new_cluster_key = "start_cluster_{}_{}".format(iteration, new_cluster_count)
-			for node in new_nodes:
-				start_node_map[node] = new_cluster_key
-				indexes = [int(val) for val in node.split("___")[1].split("_")]
-				node_doc = node.split("__")[0]
-				start_doc[node_doc] = start_doc.get(node_doc, [])
-				start_doc[node_doc].append(indexes)
-			start_clusters[new_cluster_key] = new_nodes
+	def read_data(self, current_iteration, current_round):
+		logging.info("Reading data...")
+		files = []
+		if current_round == 0:
+			folder = self.output_folder + "/batches"
+			files = natsorted(os.listdir(folder))
+			files = files[current_iteration*self.files_per_iteration:(current_iteration+1)*self.files_per_iteration]
 
-		## Add iter clusters that are not there yet
-		for key, value in iter_clusters.items():
-			new_key = "start_" + str(iteration)
-			for node in value[0]:
-				start_node_map[node] = new_key
-				indexes = [int(v) for v in node.split("___")[1].split("_")]
-				doc = node.split("___")[0]
-				start_doc[doc] = start_doc.get(doc, [])
-				start_doc[doc].append(indexes)
-			start_clusters[new_key] = value
+		else:
+			folders = natsorted([f for f in os.listdir(self.output_folder + "/clusters/unfilled/") if "round_{}".format(current_round-1) in f])
+			folders = folders[current_iteration*self.files_per_iteration:(current_iteration+1)*self.files_per_iteration]
+			for folder in folders:
+				folder_files = natsorted(os.listdir(self.output_folder + "/clusters/unfilled/" + folder))
+				for folder_file in folder_files: files.append(self.output_folder + "/clusters/unfilled/" + folder + "/" + folder_file)
 
+		if current_round == 0:
+			datas = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.read_data_parallel_iterations)(filename, file_index, self.minimum_alignment_score, "batches") for file_index, filename in enumerate(files))
+			data = {key: value for data_dictionary in datas for key, value in data_dictionary.items()}
+		else:
+			datas = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.read_data_parallel_iterations)(filename, file_index, self.minimum_alignment_score, "clustered") for file_index, filename in enumerate(files))
+			data = {}
+			for data_dict in datas:
+				for key, value in data_dict.items():
+					data[key] = data.get(key, [])
+					data[key] += value
+		return data
 
-	def load_iteration_folder_data(self, folder):
-		files = os.listdir(folder)
-		d = {}
-		for filename in files:
-			d.update(self.gload(folder + "/" + filename))
-		return d
+	def extract_clusters(self, graph, iteration, current_round):
+		subgraphs = nx.connected_component_subgraphs(graph)
+		cluster_index = 0
+		save_index = 0
+		clusters = {}
+		for subgraph_index, subgraph in enumerate(subgraphs):
+			nodes = subgraph.nodes()
+			edges = subgraph.edges()
+			new_clusters = self.community.detect(nodes, edges)
+			for new_cluster in new_clusters:
+				clusters["cluster_{}".format(cluster_index)] = new_cluster
+				cluster_index += 1
+			if len(clusters) >= self.clusters_per_file:
+				self.save_clusters(clusters, save_index, iteration, current_round)
+				save_index += 1
+				clusters.clear()
+		self.save_clusters(clusters, save_index, iteration, current_round)
 
-	def minimize_indexes(self, start_doc_mapping, iter_node_mapping):
-		for mapping in [start_doc_mapping, iter_node_mapping]:
-			for key, value in mapping.items():
-				mapping[key] = self.remove_duplicates(value)
-
-		##HORRIBLE :#
-	def remove_duplicates(self, indexes):
-		new_indexes = []
-		for index in indexes:
-			new_indexes.append(json.dumps(index))
-		new_indexes = set(new_indexes)
-		return [json.loads(index_list) for index_list in new_indexes]
-
-	def combine_clusters(self, iterations):
-		## Start by calculating maps for every iteration :) Use shelves to store
-		start_folder = "{}/clusters/unfilled/iteration_{}".format(self.output_folder, 0)
-		start_data = self.load_iteration_folder_data(start_folder)
-		start_node_mapping, start_doc_mapping = self.create_mapping(start_data, "start")
-		for i in range(1, iterations):
-			iter_folder = "{}/clusters/unfilled/iteration_{}".format(self.output_folder, i)
-			iter_data= self.load_iteration_folder_data(iter_folder)
-			iter_node_mapping, iter_doc_mapping = self.create_mapping(iter_data, "iter")
-			matchings = self.calculate_matching_nodes(start_doc_mapping, iter_doc_mapping)
-			self.combine_matches(matchings, start_node_mapping, start_doc_mapping, start_data, iter_node_mapping, iter_doc_mapping, iter_data, i)
-			self.minimize_indexes(start_doc_mapping, iter_node_mapping)
-		print(start_data)
-## get connected components: each subgraph is nodes that should be considered the same
-## so for every subgraph,
+	def save_clusters(self, clusters, save_index, iteration, current_round):
+		if not os.path.exists("{}/clusters/unfilled/round_{}_iteration_{}".format(self.output_folder, current_round, iteration)):
+			os.makedirs("{}/clusters/unfilled/round_{}_iteration_{}".format(self.output_folder, current_round, iteration))
+		with gzip.open("{}/clusters/unfilled/round_{}_iteration_{}/clusters_{}.gz".format(self.output_folder, current_round, iteration, save_index), "wt") as gzf:
+			gzf.write(json.dumps(clusters))
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Clusterizing the results.")
-	parser.add_argument("--output_folder", help="Output folder", required=True)
-	parser.add_argument("--threads", help="Number of threads to use", default=1, type=int)
-	parser.add_argument("--min_length", help="Minimum length of found hit", default=1, type=int)
-	parser.add_argument("--max_length", help="Maximum length of found hit", default=100000, type=int)
-	parser.add_argument("--node_similarity", help="Minimum node similarity to be conidered the same", type=float, default=0.90)
-	parser.add_argument("--pre_split", help="If the data is presplit and needs to be flattened", default=False)
-	parser.add_argument("--compress", help="If the data should be compressed mid clusterizing", default=False)
-	parser.add_argument("--ver", default="1")
+	parser.add_argument("--output_folder", help="Output folder. This is the folder done by data_preparer", required=True)
+	parser.add_argument("--min_length", help="Minimum length of found hit. Default = 0", default=0, type=int)
+	parser.add_argument("--max_length", help="Maximum length of found hit. Default = 100000", default=100000, type=int)
+	parser.add_argument("--node_similarity", help="Minimum node similarity to be considered the same. Default = 0.90", type=float, default=0.90)
+	parser.add_argument("--threads", help="Number of threads to use. Default = 1", default=1, type=int)
+	parser.add_argument("--pre_split", help="If the data is presplit and needs to be flattened. Default = False", action="store_true", default=False)
+	parser.add_argument("--compress", help="If the data should be compressed mid clusterizing. Default = False", default=False)
+	parser.add_argument("--files_per_iter", help="Number of files to read for iteration. Only used if using version 2. Default 20", default=20)
+	parser.add_argument("--files_per_cluster", help="Number of clusters to save per file. Default = 1000", default=1000, type=int)
+	parser.add_argument("--min_align_score", help="Minimum alignment score. i.e how similar two hits are. Default = 0.0, so BLAST decides everything", default=0.0, type=float)
+	parser.add_argument("--ver", help="Cluzerizing method. ver = 1 clusterizes everything at the same time, thus loading everything into memory at once. 2 does it in batches. Default = 1", default="1")
 	args = parser.parse_args()
 
 	if args.ver == "1":
-		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress)
-		print(c.clusterize())
+		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score)
+		c.clusterize()
+	elif args.ver == "2":
+		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score)
+		c.clusterize()
 	else:
-		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress)
-		print(c.clusterize())
+
+		logging.info("WRONG VERSION SET")
+	logging.info("Done clusterizing...")
