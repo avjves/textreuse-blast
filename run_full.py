@@ -12,10 +12,10 @@ if __name__ == "__main__":
 	parser.add_argument("--output_folder", help="A folder where all data will be stored.", required=True)
 	parser.add_argument("--e_value", help="E-value for BLAST. Lowering this will increase computing time, but will also find more hits and shorter", default=0.001)
 	parser.add_argument("--word_size", help="Word size for BLAST. Basically character n-gram size.", default=6)
+	parser.add_argument("--min_length", help="Minimum length of hits. Default = 0", default=0, type=int)
+	parser.add_argument("--max_length", help="Maximum length of hits. Default = 100000", default=100000, type=int)
 	parser.add_argument("--split_size", default=0, type=int)
-	parser.add_argument("--language", default="FIN")
-	min_l = 0
-	max_l = 100000
+	parser.add_argument("--language", help="Language to use.", default="FIN")
 	args = parser.parse_args()
 	dp = DataPreparer(data_location=args.data_location, output_folder=args.output_folder, language=args.language, threads=args.threads, split_size=args.split_size)
 	dp.prepare_data()
@@ -26,4 +26,3 @@ if __name__ == "__main__":
 	clusterizer.clusterize()
 	filler = ClusterFiller(output_folder=args.output_folder, threads=args.threads, language=args.language)
 	c = filler.fill_clusters()
-	print(c)

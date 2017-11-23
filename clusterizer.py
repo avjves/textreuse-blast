@@ -191,7 +191,7 @@ class ParallelJobRunner:
 
 class Clusterizer:
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, clusters_per_file, min_alignment_score, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_cluster, min_alignment_score, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -209,8 +209,8 @@ class Clusterizer:
 		nodes = self.find_nodes(data)
 		data = self.stringify_data(data)
 		mapping = self.calculate_node_similarities(nodes)
-		graph = self.fill_graph(data, mapping)
-		self.extract_clusters(graph, 0)
+		data_list = self.make_data_list(data, mapping)
+		self.extract_clusters(data_list, 0)
 
 		## Read the data in parallel, combine results into one dictionary, data = dictionary, key = id (file1), value = list of hsps
 	def read_data(self):
@@ -281,22 +281,51 @@ class Clusterizer:
 		return mapping
 
 
-	def fill_graph(self, data, mapping):
-		logging.info("Filling graph...")
-		graph = nx.Graph()
+	def make_data_list(self, data, mapping):
+		logging.info("Making disjoint data list...")
+		#graph = nx.Graph()
+		data_list = []
+		#for key, pairs in data.items():
+		#	for edgepair in pairs:
+		#		graph.add_edge(mapping[edgepair[0]], mapping[edgepair[1]])
 		for key, pairs in data.items():
 			for edgepair in pairs:
-				graph.add_edge(mapping[edgepair[0]], mapping[edgepair[1]])
-		return graph
+				data_list.append((mapping[edgepair[0]], mapping[edgepair[1]]))
+		return data_list
 
-	def extract_clusters(self, graph, iteration):
-		subgraphs = nx.connected_component_subgraphs(graph)
+	def indices_dict(self, data):
+	    d = defaultdict(list)
+	    for i,(a,b) in enumerate(data):
+	        d[a].append(i)
+	        d[b].append(i)
+	    return d
+
+	def disjoint_data_indices(self, data):
+	    d = self.indices_dict(data)
+	    sets = []
+	    while len(d):
+	        que = set(d.popitem()[1])
+	        ind = set()
+	        while len(que):
+	            ind |= que
+	            que = set([y for i in que for x in data[i] for y in d.pop(x, [])]) - ind
+	        sets += [ind]
+	    return sets
+
+	def generate_disjoint_components(self, data):
+		return [set([x for i in s for x in data[i]]) for s in self.disjoint_data_indices(data)]
+
+	def extract_clusters(self, data_list, iteration):
+		#subgraphs = nx.connected_component_subgraphs(graph)
 		cluster_index = 0
 		save_index = 0
 		clusters = {}
-		for subgraph_index, subgraph in enumerate(subgraphs):
-			nodes = subgraph.nodes()
-			edges = subgraph.edges()
+		for disjoint_set in self.generate_disjoint_components(data_list):
+		#for subgraph_index, subgraph in enumerate(subgraphs):
+			#nodes = subgraph.nodes()
+			nodes = list(disjoint_set)
+			edges = None
+			#edges = subgraph.edges()
 			new_clusters = self.community.detect(nodes, edges)
 			for new_cluster in new_clusters:
 				clusters["cluster_{}".format(cluster_index)] = new_cluster
@@ -315,7 +344,7 @@ class Clusterizer:
 
 class ClusterizerVol2(Clusterizer):
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, files_per_cluster, min_alignment_score, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, files_per_cluster, min_alignment_score, start_round, end_round, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -327,11 +356,17 @@ class ClusterizerVol2(Clusterizer):
 		self.clusters_per_file = files_per_cluster
 		self.files_per_iteration = int(files_per_iteration)
 		self.minimum_alignment_score = min_alignment_score
+		self.start_round = start_round
+		self.end_round = end_round
 
 	def clusterize(self):
 		logging.info("Starting clusterizing, using {} cores...".format(self.threads))
 		current_iteration = 0
 		current_round = 0
+		if self.start_round > -1:
+			current_round = self.start_round
+		else:
+			current_round = 0
 		while True:
 			file_count = int(self.get_file_counts(current_round))
 			if current_round == 0:
@@ -352,9 +387,9 @@ class ClusterizerVol2(Clusterizer):
 				data = self.stringify_data(data)
 			nodes = self.find_nodes(data)
 			mapping = self.calculate_node_similarities(nodes)
-			graph = self.fill_graph(data, mapping)
-			self.extract_clusters(graph, current_iteration, current_round)
-			data, nodes, mapping, graph = [], [], [], [] ## CLEAR RAM
+			data_list = self.make_data_list(data, mapping)
+			self.extract_clusters(data_list, current_iteration, current_round)
+			data, nodes, mapping, data_list = [], [], [], [] ## CLEAR RAM
 			current_iteration += 1
 
 	def find_nodes(self, data):
@@ -370,6 +405,8 @@ class ClusterizerVol2(Clusterizer):
 		return nodes
 
 	def must_continue_batches(self, current_round):
+		if current_round == self.end_round:
+			return False
 		if current_round == 0:
 			folders = os.listdir(self.output_folder + "/batches")
 		else:
@@ -414,14 +451,17 @@ class ClusterizerVol2(Clusterizer):
 					data[key] += value
 		return data
 
-	def extract_clusters(self, graph, iteration, current_round):
-		subgraphs = nx.connected_component_subgraphs(graph)
+	def extract_clusters(self, data_list, iteration, current_round):
+		#subgraphs = nx.connected_component_subgraphs(graph)
 		cluster_index = 0
 		save_index = 0
 		clusters = {}
-		for subgraph_index, subgraph in enumerate(subgraphs):
-			nodes = subgraph.nodes()
-			edges = subgraph.edges()
+		for disjoint_set in self.generate_disjoint_components(data_list):
+	#	for subgraph_index, subgraph in enumerate(subgraphs):
+			#nodes = subgraph.nodes()
+			#edges = subgraph.edges()
+			nodes = list(disjoint_set)
+			edges = None
 			new_clusters = self.community.detect(nodes, edges)
 			for new_cluster in new_clusters:
 				clusters["cluster_{}".format(cluster_index)] = new_cluster
@@ -450,14 +490,17 @@ if __name__ == "__main__":
 	parser.add_argument("--files_per_iter", help="Number of files to read for iteration. Only used if using version 2. Default 20", default=20)
 	parser.add_argument("--files_per_cluster", help="Number of clusters to save per file. Default = 1000", default=1000, type=int)
 	parser.add_argument("--min_align_score", help="Minimum alignment score. i.e how similar two hits are. Default = 0.0, so BLAST decides everything", default=0.0, type=float)
+	parser.add_argument("--start_round", help="Dev option. Will cluster only from this round in ver 2 mode.", default=-1, type=int)
+	parser.add_argument("--end_round", help="Dev option. Will cluster only to this  round in ver 2 mode.", default=-1, type=int)
 	parser.add_argument("--ver", help="Cluzerizing method. ver = 1 clusterizes everything at the same time, thus loading everything into memory at once. 2 does it in batches. Default = 1", default="1")
 	args = parser.parse_args()
+
 
 	if args.ver == "1":
 		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score)
 		c.clusterize()
 	elif args.ver == "2":
-		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score)
+		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round)
 		c.clusterize()
 	else:
 
