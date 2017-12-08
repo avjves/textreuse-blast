@@ -8,7 +8,7 @@ from blast import MultipleBlastRunner
 
 	## DATA MUST BE PREPARED BEFORE RUNNING THIS
 def get_folder_size(folder):
-	return subprocess.check_output(["du", folder]).split()[0].decode("utf-8")
+	return int(subprocess.check_output(["du", folder]).split()[0].decode("utf-8"))
 
 
 def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=60):
