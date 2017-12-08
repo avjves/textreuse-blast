@@ -7,7 +7,27 @@ from blast import MultipleBlastRunner
 	blast.py'''
 
 	## DATA MUST BE PREPARED BEFORE RUNNING THIS
+def get_folder_size(folder):
+	return subprocess.check_output(["du", folder]).split()[0].decode("utf-8")
 
+
+def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=60):
+	if wait:
+		if os.path.exists(local_folder):
+			print("Folder exists.")
+			original_size = get_folder_size(output_folder)
+			while True:
+				current_size = get_folder_size(local_folder)
+				print("Current folder size: {}".format(current_folder))
+				if current_size < original_size*0.99:
+					print("{} < {}, waiting {} seconds.".format(current_size, original_size, wait_time))
+					time.wait(wait_time)
+				else:
+					break
+		else:
+			copytree(output_folder, local_folder)
+	else:
+		copytree(output_folder, local_folder)
 
 def copy_output_folder_to_local(output_folder, local_folder):
 	copytree(output_folder, local_folder)
@@ -40,7 +60,7 @@ if __name__ == "__main__":
 	if "preset" in args:
 		if args.preset == "taito":
 			print("Using preset: Taito")
-			args.local_folder = os.environ.get("TMPDIR") + "/" + os.environ.get("SLURM_JOBID") + "/" + args.output_folder.split("/")[-1]
+			args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
 
 	if "local_folder" in args:
 		copy_output_folder_to_local(args.output_folder, args.local_folder)
