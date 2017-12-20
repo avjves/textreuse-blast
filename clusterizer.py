@@ -293,6 +293,9 @@ class Clusterizer:
 				data_list.append((mapping[edgepair[0]], mapping[edgepair[1]]))
 		return data_list
 
+
+	## According to https://stackoverflow.com/a/20167281
+
 	def indices_dict(self, data):
 	    d = defaultdict(list)
 	    for i,(a,b) in enumerate(data):
@@ -316,17 +319,12 @@ class Clusterizer:
 		return [set([x for i in s for x in data[i]]) for s in self.disjoint_data_indices(data)]
 
 	def extract_clusters(self, data_list, iteration):
-		#subgraphs = nx.connected_component_subgraphs(graph)
 		cluster_index = 0
 		save_index = 0
 		clusters = {}
 		for disjoint_set in self.generate_disjoint_components(data_list):
-		#for subgraph_index, subgraph in enumerate(subgraphs):
-			#nodes = subgraph.nodes()
 			nodes = list(disjoint_set)
-			edges = None
-			#edges = subgraph.edges()
-			new_clusters = self.community.detect(nodes, edges)
+			new_clusters = self.community.detect(nodes, None)
 			for new_cluster in new_clusters:
 				clusters["cluster_{}".format(cluster_index)] = new_cluster
 				cluster_index += 1

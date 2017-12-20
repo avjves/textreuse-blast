@@ -1,4 +1,4 @@
-import argparse, os
+import argparse, os, time, subprocess
 from shutil import copytree, rmtree, copyfile
 from blast import MultipleBlastRunner
 
@@ -7,30 +7,37 @@ from blast import MultipleBlastRunner
 	blast.py'''
 
 	## DATA MUST BE PREPARED BEFORE RUNNING THIS
+
+
 def get_folder_size(folder):
-	return int(subprocess.check_output(["du", folder]).split()[0].decode("utf-8"))
+	return int(subprocess.check_output(["du" "-s", folder]).split()[0].decode("utf-8"))
 
 
-def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=60):
+def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=5):
 	if wait:
 		if os.path.exists(local_folder):
 			print("Folder exists.")
 			original_size = get_folder_size(output_folder)
 			while True:
 				current_size = get_folder_size(local_folder)
-				print("Current folder size: {}".format(current_folder))
-				if current_size < original_size*0.99:
+				print("Current folder size: {}".format(current_size))
+				if current_size < original_size:
 					print("{} < {}, waiting {} seconds.".format(current_size, original_size, wait_time))
-					time.wait(wait_time)
+					time.sleep(wait_time)
 				else:
 					break
 		else:
-			copytree(output_folder, local_folder)
+			try:
+				copytree(output_folder, local_folder)
+			except OSError:
+				print("Couldn't copy, wait a while...")
+				time.sleep(wait_time)
+				copy_output_folder_to_local(output_folder, local_folder, wait, wait_time)
 	else:
 		copytree(output_folder, local_folder)
 
-def copy_output_folder_to_local(output_folder, local_folder):
-	copytree(output_folder, local_folder)
+#def copy_output_folder_to_local(output_folder, local_folder):
+	#copytree(output_folder, local_folder)
 
 
 def delete_local_data(local_folder):

@@ -27,6 +27,12 @@ class TextEncoder:
 	def encode_mask(self, text):
 		return re.sub("[^" + "".join(list(self.mapping.keys())) + "]", "X", text, flags=re.DOTALL)
 
+	def decode_enc_text(self, text):
+		for char, amino in self.mapping.items():
+			text = re.sub(u"[" + amino + "]", char, text, flags=re.DOTALL)
+		return text
+
+
 	## Calculate actual text
 	def decode_text(self, text, start_index, end_index, preprocess=True):
 		start_index, end_index = int(start_index)-1, int(end_index)-1
