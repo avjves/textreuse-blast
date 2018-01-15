@@ -10,7 +10,7 @@ from blast import MultipleBlastRunner
 
 
 def get_folder_size(folder):
-	return int(subprocess.check_output(["du" "-s", folder]).split()[0].decode("utf-8"))
+	return int(subprocess.check_output(["du", "-s", folder]).split()[0].decode("utf-8"))
 
 
 def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=5):

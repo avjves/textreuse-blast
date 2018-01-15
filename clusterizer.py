@@ -3,6 +3,8 @@ import networkx as nx
 from operator import itemgetter
 from natsort import natsorted
 from joblib import Parallel, delayed
+from collections import defaultdict
+
 from community import CommunityDetector
 logging.basicConfig(level=0)
 
@@ -191,7 +193,7 @@ class ParallelJobRunner:
 
 class Clusterizer:
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_cluster, min_alignment_score, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, clusters_per_file, min_alignment_score, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -342,7 +344,7 @@ class Clusterizer:
 
 class ClusterizerVol2(Clusterizer):
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, files_per_cluster, min_alignment_score, start_round, end_round, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, clusters_per_file, min_alignment_score, start_round, end_round, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -351,7 +353,7 @@ class ClusterizerVol2(Clusterizer):
 		self.node_similarity = node_similarity
 		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, compress)
 		self.community = CommunityDetector()
-		self.clusters_per_file = files_per_cluster
+		self.clusters_per_file = clusters_per_file
 		self.files_per_iteration = int(files_per_iteration)
 		self.minimum_alignment_score = min_alignment_score
 		self.start_round = start_round
@@ -486,7 +488,7 @@ if __name__ == "__main__":
 	parser.add_argument("--pre_split", help="If the data is presplit and needs to be flattened. Default = False", action="store_true", default=False)
 	parser.add_argument("--compress", help="If the data should be compressed mid clusterizing. Default = False", default=False)
 	parser.add_argument("--files_per_iter", help="Number of files to read for iteration. Only used if using version 2. Default 20", default=20)
-	parser.add_argument("--files_per_cluster", help="Number of clusters to save per file. Default = 1000", default=1000, type=int)
+	parser.add_argument("--clusters_per_file", help="Number of clusters to save per file. Default = 1000", default=1000, type=int)
 	parser.add_argument("--min_align_score", help="Minimum alignment score. i.e how similar two hits are. Default = 0.0, so BLAST decides everything", default=0.0, type=float)
 	parser.add_argument("--start_round", help="Dev option. Will cluster only from this round in ver 2 mode.", default=-1, type=int)
 	parser.add_argument("--end_round", help="Dev option. Will cluster only to this  round in ver 2 mode.", default=-1, type=int)
@@ -495,10 +497,10 @@ if __name__ == "__main__":
 
 
 	if args.ver == "1":
-		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score)
+		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score)
 		c.clusterize()
 	elif args.ver == "2":
-		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, files_per_cluster=args.files_per_cluster, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round)
+		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round)
 		c.clusterize()
 	else:
 
