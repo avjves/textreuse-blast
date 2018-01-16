@@ -14,7 +14,7 @@ class ClusterFiller:
 	def fill_clusters(self):
 		folders = natsorted(os.listdir("{}/clusters/unfilled".format(self.output_folder)))
 		highest_round = folders[-1].split("_")[1]
-		right_folders = [f for f in folders if "round_{}".format(highest_round)]
+		right_folders = [f for f in folders if "round_{}".format(highest_round) in f]
 		files = []
 		for right_folder in right_folders:
 			right_files = os.listdir("{}/clusters/unfilled/{}".format(self.output_folder, right_folder))
@@ -70,6 +70,7 @@ class ClusterFiller:
 			hit_data["node"] = node
 			hit_data["doc_id"] = key
 			hit_data["original_indices"] = indices
+			hit_data["encoded_indices"] = indexes
 			hits.append(hit_data)
 
 		cluster["length"] = int(length/len(hits))

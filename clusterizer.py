@@ -380,7 +380,7 @@ class ClusterizerVol2(Clusterizer):
 	def clusterize_current_files(self, current_round, file_count):
 		current_iteration = 0
 		for i in range(0, file_count, self.files_per_iteration):
-			logging.info("Clusterizing {}/{} files, iteration {}, {} per iteration...".format(i, file_count, current_iteration, self.files_per_iteration))
+			logging.info("Clusterized {}/{} folders, iteration {}, {} per iteration...".format(i, file_count, current_iteration, self.files_per_iteration))
 			data = self.read_data(current_iteration, current_round)
 			if current_round == 0:
 				data = self.flatten_data(data)
