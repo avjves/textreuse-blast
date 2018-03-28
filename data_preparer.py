@@ -95,22 +95,6 @@ class DataPreparer:
 	def get_text_count(self):
 		return self.text_count
 
-	## FASTA file for DB generation OLD
-	#def make_fasta_file(self):
-	#	with open(self.output_folder + "/db/database.fsa", "w") as fasta_file:
-	#		gi = 1
-	#		encoded_files = os.listdir(self.output_folder + "/encoded")
-	#		for filename in encoded_files:
-	#			with open(self.output_folder + "/encoded/" + filename, "r") as encoded_file:
-	#				for line in encoded_file:
-	#					block = json.loads(line)
-	#					id = block["id"]
-	#					text = block["text"]
-	#					begin = ">gi|{} {}".format(gi, id)
-	#					fasta_file.write("{}\n{}\n".format(begin, text))
-	#					gi += 1
-	#	self.text_count = gi
-
 	## Make the DB using makeblastdb
 	def make_db(self):
 		subprocess.call("makeblastdb -in {} -dbtype prot -title TextDB -parse_seqids -hash_index -out {}".format(self.output_folder + "/db/database.fsa", self.output_folder + "/db/textdb").split(" "))
@@ -126,16 +110,22 @@ class DataPreparer:
 			self.make_directory(where + "/" + location)
 
 
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Preparing the data. This should only be run if you are planning on running the software in batches.")
 	parser.add_argument("--threads", help="Number of threads to use", default=1, type=int)
-	parser.add_argument("--data_location", help="Location of the data files", required=True)
+	parser.add_argument("--data_location", help="Location of the data files", required=False)
 	parser.add_argument("--output_folder", help="A folder where all data will be stored in the end.", required=True)
 	parser.add_argument("--language", help="Encoding language", default="FIN")
 	parser.add_argument("--split_size", type=int, help="If needed to split the data prior to entering it into the DB", default=-1)
 
+	parser.add_argument("--multiple", action="store_true", default=False)
+	parser.add_argument("--data_folders", help="Folders to use. type: path1;name1;path2;name2")
 
 	args = parser.parse_args()
 
-	dp = DataPreparer(args.data_location, args.output_folder, args.threads, args.language, args.split_size)
+	if not args.multiple:
+		dp = DataPreparer(args.data_location, args.output_folder, args.threads, args.language, args.split_size)
+	else:
+		dp = MultipleDataPreparer(args.data_folders, args.output_folder, args.threads, args.language, args.split_size)
 	dp.prepare_data()

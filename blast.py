@@ -8,6 +8,9 @@ def make_directory(self, where):
 	if not os.path.exists(where):
 		os.makedirs(where)
 
+''' Runs BLAST against the data in one full go '''
+
+
 class SingleBlastRunner:
 
 	def __init__(self, data, output_folder, e_value, word_size, threads, text_count, language="FIN"):
@@ -77,7 +80,8 @@ class SingleBlastRunner:
 			subprocess.call("blastdbcmd -db {} -entry {}".format(self.output_folder + "/db/textdb", gi_index).split(" "), stdout=query_file)
 		self.query_loc = self.output_folder + "/info/query.fsa"
 
-## When running the software in batches
+''' Runs one iteration of BLAST. This can then be run in batches '''
+
 class MultipleBlastRunner:
 
 	def __init__(self, output_folder, e_value, word_size, threads, iter, queries_per_iter, text_count):
@@ -117,6 +121,17 @@ class MultipleBlastRunner:
 		with open(self.output_folder + "/info/iter_{}/query.fsa".format(self.iter), "w") as query_file:
 			subprocess.call("blastdbcmd -db {} -entry {}".format("{}/db/textdb".format(self.output_folder), gi_index).split(" "), stdout=query_file)
 		self.query_loc = "{}/info/iter_{}/query.fsa".format(self.output_folder, self.iter)
+		self.lowercase_query()
+
+	def lowercase_query(self):
+		with open(self.query_loc, "r") as query_file:
+			lines = query_file.read().split("\n")
+		title = lines.pop(0)
+		text = "".join(lines)
+		text = text.replace("D", "d")
+
+		with open(self.query_loc, "w") as query_file:
+			query_file.write("{}\n{}".format(title, text))
 
 	def run_blast(self):
 		logging.info("Running BLAST...")
@@ -124,7 +139,7 @@ class MultipleBlastRunner:
 			logging.info("Running query: #{}".format(i))
 			self.generate_positive_gi_list(i)
 			self.make_query_file(i)
-			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/iter_" + str(self.iter) + "/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
+			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/iter_" + str(self.iter) + "/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-lcase_masking", "-num_threads", str(self.threads)])
 
 	def compress_results(self):
 		logging.info("Compressing results...")

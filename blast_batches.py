@@ -4,14 +4,19 @@ from blast import MultipleBlastRunner
 
 ''' to run on a cluster computer, it might be helpful to copy db to the hardrive of the node
 	This file can be run instead of blast.py. Will make sure the data is on the node before running
-	blast.py'''
+	blast.py
 
-	## DATA MUST BE PREPARED BEFORE RUNNING THIS
+	Data must be prepared (data_preparer.py) before running this!'''
+
 
 
 def get_folder_size(folder):
 	return int(subprocess.check_output(["du", "-s", folder]).split()[0].decode("utf-8"))
 
+
+
+''' Copies the BLAST DB folder to local node. Multiple processes may run on the same node, so
+	must first check if something is already being copied and then wait until it's done '''
 
 def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=5):
 	if wait:
@@ -35,9 +40,6 @@ def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_tim
 				copy_output_folder_to_local(output_folder, local_folder, wait, wait_time)
 	else:
 		copytree(output_folder, local_folder)
-
-#def copy_output_folder_to_local(output_folder, local_folder):
-	#copytree(output_folder, local_folder)
 
 
 def delete_local_data(local_folder):
@@ -64,12 +66,11 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
-	if "preset" in args:
-		if args.preset == "taito":
-			print("Using preset: Taito")
-			args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
+	if args.preset == "taito":
+		print("Using preset: Taito")
+		args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
 
-	if "local_folder" in args:
+	if args.local_folder != None:
 		copy_output_folder_to_local(args.output_folder, args.local_folder)
 		runner = MultipleBlastRunner(output_folder=args.local_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count)
 		runner.run()
