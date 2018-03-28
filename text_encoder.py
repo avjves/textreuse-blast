@@ -13,8 +13,8 @@ class TextEncoder:
 		elif language.lower() == "eng":
 			return {"u": "E", "n": "W", "t": "R", "b": "V", "d": "C", "g": "Z", "f": "N", "s": "F", "m": "K", "w": "M", "i": "G", "p": "I", "o": "Y", "e": "H", "h": "S", "r": "T", "l": "A", "k": "X", "c": "B", "a": "W", "y": "Q", "j": "D", "v": "P"}
 
-	elif language.lower() == "eng_space":
-			return {"o": "Y", "a": "W", "t": "R", "f": "N", "w": "M", "h": "S", "l": "A", "v": "P", "y": "Q", " ": "D", "e": "H", "r": "T", "i": "G", "s": "F", "p": "I", "c": "B", "b": "V", "m": "K", "d": "C", "g": "Z", "u": "E", ".": "X", "n": "W"}
+		elif language.lower() == "eng_space":
+				return {"o": "Y", "a": "W", "t": "R", "f": "N", "w": "M", "h": "S", "l": "A", "v": "P", "y": "Q", " ": "D", "e": "H", "r": "T", "i": "G", "s": "F", "p": "I", "c": "B", "b": "V", "m": "K", "d": "C", "g": "Z", "u": "E", ".": "X", "n": "W"}
 
 
 	''' Preprocess text by removing extra whitespaces '''
