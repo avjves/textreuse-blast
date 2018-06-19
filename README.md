@@ -1,8 +1,6 @@
 # Text Reuse Detection with BLAST
 
-***Readme still in process of being written ***
-This is a software to detect and clusterize text reuse. The software takes advantage of BLAST (Basic Local Alignment Search Tool, developed for aligning biomedical sequences) to detect reuse.
-BLAST detects similar pairs, so the pairs are clusterised based on their offset values, so that overlapping passages will be considered to be part of a same cluster.
+This is a repository for software to detect and clusterize text reuse. The software takes advantage of NCBI BLAST (Basic Local Alignment Search Tool, developed for aligning biomedical sequences) to detect reuse. The data is encoded into protein sequences, which BLAST can read. It then finds pairs where parts of documents overlap. These pairs are then clusterized based on their offset values, so that overlapping passages will be considered to be part of a same cluster.
 The software takes advantage of multiple cores and it can be run in batches, so running it on cluster computers is possible. Depending on the size of the data, this might be a necessity, as the software can eat a lot of processing power.
 
 ## Installation
@@ -38,17 +36,35 @@ Now you are ready to run.
 
 ## Data formatting
 
-Your input data needs to be gzipped files in a folder. Each gzipped file should contain part of your data, where each document will be represented in JSON format on its own line. Each document can contain arbitrary amount of metadata that will be added to the found clusters at the end, but the bare bone data structure has fields text and doc_id. Text contains your text and doc_id is the name of the document. 
+Your input data needs to be gzipped file(s) in a folder. Each gzipped file should contain part of your data, where each document will be represented in JSON format on its own line. Each document can contain arbitrary amount of metadata that will be added to the found clusters at the end, but the bare bone data structure has fields text and doc_id. Text contains your text and doc_id is the name of the document.  
 Example could look like this:
 ```
 {"title": "NewspaperX", "date": "1907-03-18", "doc_id": "newspaperX_1907_03_18", "text": <text>}
 {"title": "NewspaperY", "date": "1907-03-19", "doc_id": "newspaperY_1907_03_19", "text": <text>}
 ```
-Here, title and date fields are optional metadata. The data should be split into at least as many files as your available cores, so that they can be read in parallel.
+Here, title and date fields are optional metadata. To take full advantage of multiple cores, the data should be split into at least as many files as available cores, so the files can be read in parellel. This step is, however, not the most computationally intensive step, so having just one file works, too.
 
 ## Running
 
 This software can be run in two ways: in one go, or in batches.
+
+### In one go
+If your data is small enough, you may want to run it in one go. This can be done by running run_full.py. This goes through all the above steps.
+
+run_full.py arguments:
+
+| Argument | Description |
+| --- | --- |
+| `data_folder` | Where the gzipped data files are located. |
+| `output_folder` | Folder where to save all the data. |
+| `language` | Which language the data is in. Currently supports "ENG" and "FIN" out of the box. Others must be manually added. |
+| `threads` | Number of threads to use. |
+| `split_size` | The size of the splits, if the document should be split into parts. Otherwise, ignore. This is useful if the documents have vastly different lengths, so splitting the data will allow each batch to be approximately same sized. |
+| `e_value` | Setting for BLAST. This should be set to be very low. Lowering this value will decrease the required to computational time, but will also cut down shorter hits from the results. Default 1e-15. |
+| `word_size` | Setting for BLAST. This is the size of word seeds to use to when finding repeated passages. Lowering will increase computation time, but if the data quality is bad, it might be necessary. Default=6. Range=2-7 |
+| `min_length` | Minimum length of hits to clusterize. Decreasing this wilĺ not make the program a lot faster, as BLAST will still find these and they are just ignored in the clusterizer part. |
+| `max_length` | Maximum length of hits to clusterize. |
+
 
 ### Batches
 
@@ -66,15 +82,15 @@ Data preparer has multiple arguments that must be specified:
 
 Data preparer procudes databases that BLAST can use to compare the data.
 #### 2nd phase: blast_batches.py
-This is the part that should be ran in batches on cluster computers i.e. if they're available, as this is where the actual computation happens. 
+This is the part that should be ran in batches on cluster computers if they're available, as this is where the actual computation happens.
 
-blast.py arguments:
+blast_batches.py arguments:
 
 | Argument | Description |
 | --- | --- |
 | `output_folder` | This is the location of the folder that data_preparer produced.  |
 | `local_folder` | Folder where to copy the data first. This is useful if you're running the data on cluster computers and want to copy the data to the cluster node first. (i.e. shared_location --> local_location) |
-| `batch_folder` | Folder where to copy the results. This can be set to be the batches folder in output_folder, if you are not copying the the folder to local nodes or don't mind unnecessary transfers. | 
+| `batch_folder` | Folder where to copy the results. This can be set to be the batches folder in output_folder, if you are not copying the the folder to local nodes or don't mind unnecessary transfers. |
 | `threads` | Number of threads to use. |
 | `e_value` | Setting for BLAST. This should be set to be very low. Lowering this value will decrease the required to computational time, but will also cut down shorter hits from the results. Default 1e-15. |
 | `word_size` | Setting for BLAST. This is the size of word seeds to use to when finding repeated passages. Lowering will increase computation time, but if the data quality is bad, it might be necessary. Default=6. Range=2-7 |
@@ -98,11 +114,11 @@ clusterizer.py arguments:
 | `max_length` | Maximum length of hits to consider. |
 | `node_similarity` | The minimum similarity between two nodes in one document to consider them to be the same. I.e. how much the must overlap. Default 0.90. |
 | `pre_split` | If the data is pre_split and you want to combine the parts back into one.|
-| `files_per_iter` | Files to read per iteration. Only used if ver = 2.|
+| `files_per_iter` | Files to read per iteration. This means that only X many files are first read in and clusterized. In the next iteration, another X are clusterized. After going through all files once, the newly clusterized files are clusterized again. This is done until just one one iteration is done on a pass through the results.|
 | `files_per_cluster`| Clusters per file saved. |
 | `min_alignment_score` | Minimum alignment score of BLAST result to consider it a real hit. Default 0.0, so everything is considered a real hit. |
+| `alignment_ranges` | Hit length ranges and what minimum alignment score to use there. Format: min_length_1,alignment_score_1,max_length_1;min_length_2,alignment_score_2,max_length_2 Example: 0,0.85,100;100,0.75,150 |
 | `threads` | Number of threads to use. |
-| `ver` | Which version to use. 1 = Cluster everything at once, 2 = Cluster in batches. |
 
 #### 4th phase: filler.py
 
@@ -116,24 +132,26 @@ filler.py arguments:
 | `language` | Which language the data is in. Currently supports "ENG" and "FIN" out of the box. Others must be manually added. |
 | `threads` | Number of threads to use. |
 | `split_size` | The size of the splits if used. |
+| `custom_data_DBs` | If you want to use a custom data DB(s) instead of assuming there is one in the given output_folder location. Format: 'path1;path2' |
+| `custom_info_DBs` |  Same as above, but info DB.|
+| `custom_unfilled` | Custom location of the unfilled clusters. |
+| `custom_filled` | Custom output location for the filled clusters. |
 
 
 At this point, the filled clusters can be found in the *clusters/filled* folder in the *output_folder*.
 
-### In one go
-If your data is small enough, you may want to run it in one go. This can be done by running run_full.py. This goes through all the above steps.
-
-run_full.py arguments:
-
-| Argument | Description |
-| --- | --- |
-| `data_folder` | Where the gzipped data files are located. |
-| `output_folder` | Folder where to save all the data. |
-| `language` | Which language the data is in. Currently supports "ENG" and "FIN" out of the box. Others must be manually added. |
-| `threads` | Number of threads to use. |
-| `split_size` | The size of the splits, if the document should be split into parts. Otherwise, ignore. This is useful if the documents have vastly different lengths, so splitting the data will allow each batch to be approximately same sized. |
-| `e_value` | Setting for BLAST. This should be set to be very low. Lowering this value will decrease the required to computational time, but will also cut down shorter hits from the results. Default 1e-15. |
-| `word_size` | Setting for BLAST. This is the size of word seeds to use to when finding repeated passages. Lowering will increase computation time, but if the data quality is bad, it might be necessary. Default=6. Range=2-7 |
 
 
 ### Extra information
+
+
+#### Finding the text count from a DB
+To find the text count from the DB, you must navigate to the DB folder and use *blastp* cmmand to see the size. Below are instructions on how to do this. This assumes that the path is set to see *blastp* everywhere.
+
+```
+cd output_folder ##output_folder is the name given when running data_preparer etc.
+cd db
+blastp -db textdb
+```
+In the blastp output there is a number of how many sequences there are in the database. 
+That is the text count.
