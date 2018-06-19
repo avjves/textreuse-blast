@@ -10,10 +10,11 @@ logging.basicConfig(level=0)
 
 class ParallelJobRunner:
 
-	def __init__(self, output_folder, min_length, max_length, node_similarity, compress):
+	def __init__(self, output_folder, min_length, max_length, node_similarity, alignment_ranges, compress):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
+		self.alignment_ranges = alignment_ranges
 		self.node_similarity = node_similarity
 
 		## Read data, can be either tsv files or gzipped tar files
@@ -73,6 +74,14 @@ class ParallelJobRunner:
 			alignment = float(tabs[-1])
 			if key == other_key or not self.min_length <= length <= self.max_length or alignment < 100*min_alignment_score:
 				continue
+			if self.alignment_ranges:
+				skip = False
+				for alignment_range in self.alignment_ranges.split(";"):
+					start,score,end = alignment_range.split(",")
+					if int(start) <= length < int(end) and alignment < 100*float(score):
+						skip = True
+				if skip:
+					continue
 			tsv_data.setdefault(key, [])
 			tsv_data[key].append([q_start, q_end, h_start, h_end, length, other_key])
 		return tsv_data
@@ -344,18 +353,19 @@ class Clusterizer:
 
 class ClusterizerVol2(Clusterizer):
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, clusters_per_file, min_alignment_score, start_round, end_round, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, clusters_per_file, min_alignment_score, start_round, end_round, alignment_ranges, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
 		self.threads = threads
 		self.pre_split = pre_split
 		self.node_similarity = node_similarity
-		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, compress)
+		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, alignment_ranges, compress)
 		self.community = CommunityDetector()
 		self.clusters_per_file = clusters_per_file
 		self.files_per_iteration = int(files_per_iteration)
 		self.minimum_alignment_score = min_alignment_score
+		self.alignment_ranges = alignment_ranges
 		self.start_round = start_round
 		self.end_round = end_round
 
@@ -490,6 +500,7 @@ if __name__ == "__main__":
 	parser.add_argument("--files_per_iter", help="Number of files to read for iteration. Only used if using version 2. Default 20", default=20)
 	parser.add_argument("--clusters_per_file", help="Number of clusters to save per file. Default = 1000", default=1000, type=int)
 	parser.add_argument("--min_align_score", help="Minimum alignment score. i.e how similar two hits are. Default = 0.0, so BLAST decides everything", default=0.0, type=float)
+	parser.add_argument("--alignment_ranges", help="Hit length ranges and what min align score to use there. e.g. 0,0.85,100;100,0.75,150; Ver2 ONLY", default=None, type=str)
 	parser.add_argument("--start_round", help="Dev option. Will cluster only from this round in ver 2 mode.", default=-1, type=int)
 	parser.add_argument("--end_round", help="Dev option. Will cluster only to this  round in ver 2 mode.", default=-1, type=int)
 	parser.add_argument("--ver", help="Cluzerizing method. ver = 1 clusterizes everything at the same time, thus loading everything into memory at once. 2 does it in batches. Default = 1", default="1")
@@ -500,7 +511,7 @@ if __name__ == "__main__":
 		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score)
 		c.clusterize()
 	elif args.ver == "2":
-		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round)
+		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round, alignment_ranges=args.alignment_ranges)
 		c.clusterize()
 	else:
 
