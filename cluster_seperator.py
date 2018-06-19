@@ -12,11 +12,11 @@ class ClusterSeperator:
 		nothing to do with each other '''
 
 
-	def __init__(self, filled_clusters, save_folder, files_to_read, language, min_count_for_seperating, max_count_for_seperating, max_distance):
+	def __init__(self, filled_clusters, save_folder, language, min_count_for_seperating, max_count_for_seperating, max_distance):
 		self.filled_clusters = filled_clusters
 		self.save_folder = save_folder
-		self.files_to_read = files_to_read.split()
 		self.language = language
+		self.files_to_read = []
 		self.min_count_for_seperating = min_count_for_seperating
 		self.max_count_for_seperating = max_count_for_seperating
 		self.max_distance = max_distance
@@ -29,7 +29,7 @@ class ClusterSeperator:
 				with gzip.open(self.filled_clusters + "/" + f, "rt") as gzf:
 					yield json.loads(gzf.read()), f
 		else:
-			files = natsorted(os.listdir(self.filled_clusters))
+			files = natsorted(os.listdir(self.filled_clusters), reverse=True)
 			for f in files:
 				if not os.path.exists(self.save_folder + "/" + f):
 					with gzip.open(self.filled_clusters + "/" + f, "rt") as gzf:
@@ -216,6 +216,7 @@ class ClusterSeperator:
 				l += len(texts[hit_index])
 			d = {"hits": cluster_hits, "length": int(l/len(cluster_hits))}
 			new_clusters[key + "_" + str(cluster_i)] = d
+		print("Extracted {} clusters.".format(len(new_clusters)))
 		return new_clusters
 
 	''' Extract BLAST hits from the BLAST output file '''
@@ -256,7 +257,7 @@ class ClusterSeperator:
 
 	''' Compares the texts using BLAST '''
 	def blast_data(self):
-		os.system("blastp -db {}/textdb -query {}/database.fsa -word_size 4 -threshold 400 -gapopen 3 -gapextend 11 -matrix BLOSUM62 -evalue 1e-5 -outfmt \"7 stitle qstart qend sstart send length ppos\" -max_target_seqs 10000 -num_threads 24 > {}/results.tsv".format(self.blast_folder, self.blast_folder, self.blast_folder))
+		os.system("blastp -db {}/textdb -query {}/database.fsa -word_size 6 -threshold 400 -gapopen 3 -gapextend 11 -matrix BLOSUM62 -evalue 1e-10 -outfmt \"7 stitle qstart qend sstart send length ppos\" -max_target_seqs 10000 -num_threads 24 > {}/results.tsv".format(self.blast_folder, self.blast_folder, self.blast_folder))
 		with open("{}/results.tsv".format(self.blast_folder), "r") as tsvf:
 			tsvfile = tsvf.read()
 		return tsvfile
@@ -273,16 +274,16 @@ if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser(description="Cluster seperator")
 	parser.add_argument("--filled_clusters", help="Location of the filled clusters that are to be seperated.", required=True)
-	parser.add_argument("--save_folder", help="Folder where to save the seperated clusters." required=True)
+	parser.add_argument("--save_folder", help="Folder where to save the seperated clusters.", required=True)
 	parser.add_argument("--language", help="Which language to use for protein encoding.", default="eng")
 	parser.add_argument("--min_count", help="Minimum hit count to start seperating.", default=100, type=int)
 	parser.add_argument("--max_count", help="Maximum hit count to start seperating.", default=20000, type=int)
-	parser.add_argument("--max_distance", help="Maximum length distance. Default 0.75" default=0.75, type=float)
+	parser.add_argument("--max_distance", help="Maximum length distance. Default 0.75", default=0.75, type=float)
 
 
 	args = parser.parse_args()
 	print(args)
 
-	seperator = ClusterSeperator(args.filled_clusters, args.save_folder, args.files_to_read,
-								args.seperate_style, args.language, args.min_count, args.max_count, args.max_distance)
+	seperator = ClusterSeperator(args.filled_clusters, args.save_folder,
+								 args.language, args.min_count, args.max_count, args.max_distance)
 	seperator.seperate_clusters()

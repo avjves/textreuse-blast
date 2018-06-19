@@ -95,7 +95,7 @@ class ClusterFiller:
 		for node in data[0]:
 			text_id = node.split("___")[0]
 			indexes = node.split("___")[1].split("_")[0:2]
-			if self.split_size != None:
+			if self.split_size != None and self.split_size > 0:
 				doc_start, doc_end = self.generate_split_indexes(indexes)
 				text_id = "{}__{}_{}".format(text_id, doc_start, doc_end)
 

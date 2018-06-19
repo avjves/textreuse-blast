@@ -1,23 +1,24 @@
 import argparse, os, gzip, json, sys, pickle, zlib, logging
 from tqdm import tqdm
 from operator import itemgetter
+sys.path.insert(0, "/".join(os.path.dirname(os.path.realpath(__file__)).split("/")[:-1]))
 from community import CommunityDetector
 logging.basicConfig(level=logging.INFO)
 
 class Combiner:
 
-	def __init__(self, old_file_folder, new_file_folder, link_file, link_folder, save_folder):
+	def __init__(self, old_file_folder, new_file_folder, link_file, link_folder, save_folder, prefix, new_hit_type):
 		self.old_file_folder = old_file_folder
 		self.new_file_folder = new_file_folder
 		self.link_folder = link_folder
 		self.save_folder = save_folder
 		self.link_file = link_file
-		self.max_count = max_count
-		self.min_count = min_count
 		self.community = CommunityDetector()
+		self.new_cluster_prefix = prefix
+		self.new_hit_type = new_hit_type
 		self.node_similarity = 0.90
 
-	def combine_clusters(self):
+	def start_combining_clusters(self):
 		''' Calculate links and combine clusters.
 			Will also save the links if link file was specified for future use '''
 
@@ -84,7 +85,7 @@ class Combiner:
 					new_cluster = self.get_cid(new_index_pair, new_data[1], key)
 					links[new_cluster] = links.get(new_cluster, set())
 					links[new_cluster].add(old_cluster)
-	return links
+		return links
 
 
 
@@ -117,18 +118,21 @@ class Combiner:
 		files = os.listdir(folder)
 		clusters = {}
 		for filename in tqdm(files):
+			if not filename.endswith(".gz"): continue
 			with gzip.open(folder + "/" + filename, "rt") as gzf:
 				data = json.loads(gzf.read())
-
-			else:
-				newd = {}
-				for key, value in data.items():
-					hits = []
+			newd = {}
+			for key, value in data.items():
+				hits = []
+				if type(value) == dict:
 					for hit in value["hits"]:
 						enc = hit["node"]
 						hits.append(enc)
-					newd[key] = [hits, 0]
-				clusters.update(newd)
+				elif type(value[0]) == list:
+					for hit in value[0]:
+						hits.append(hit)
+				newd[key] = [hits, 0]
+			clusters.update(newd)
 
 		return clusters
 
@@ -136,6 +140,7 @@ class Combiner:
 		''' Read new clusters in '''
 		clusters = {}
 		for filename in tqdm(os.listdir(self.new_file_folder)):
+			if not filename.endswith(".gz"): continue
 			with gzip.open(self.new_file_folder + "/" + filename, "rt") as gzf:
 				gd = json.loads(gzf.read())
 			clusters.update(gd)
@@ -201,9 +206,16 @@ class Combiner:
 		''' Extract hits from the new clusters '''
 		hits = []
 		for hit in cluster_data["hits"]:
-			base = hit["node"].split("_")[0]
-			if not base.isdigit():
+			if self.new_hit_type == "fin":
+				if "xml" in hit["node"]:
+					continue
+				else:
+					hits.append(hit)
+			elif self.new_hit_type == "america":
 				hits.append(hit)
+			#base = hit["node"].split("_")[0]
+			#if not base.isdigit():
+			#	hits.append(hit)
 		return hits
 
 	def get_good_keys(self, keys, clusters):
@@ -214,14 +226,22 @@ class Combiner:
 			hits = clus["hits"]
 			crr = 0
 			for hit in hits:
-				if not hit["node"].split("_")[0].isdigit():
+				if self.new_hit_type == "america":
 					crr += 1
+				elif self.new_hit_type == "fin":
+					if "xml" not in hit:
+						crr += 1
+
+		#	for hit in hits:
+			#	if not hit["node"].split("_")[0].isdigit():
+				#	crr += 1
 			if crr > 0:
 				good_keys.append(key)
 		return good_keys
 
 	def combine_clusters(self, actual):
 		''' Perform the actual combining '''
+		logging.info("Reading new clusters...")
 		new_clusters = self.read_new_clusters()
 		logging.info("Limiting clusters...")
 		old_files = os.listdir(self.old_file_folder)
@@ -241,9 +261,27 @@ class Combiner:
 					for key in good_keys:
 						done_news.add(key)
 						new_hits = self.extract_new_hits(new_clusters[key])
-						value["new_hits"].append(new_hits)
+						value["new_hits"] += new_hits
 					##TODO Include duplicate deletion here already
+					all_hits = []
+					nodes = {"old": [], "new": []}
+					all_nodes = set()
+					uniqs = set(self.community.de_uniq([v["node"] for v in value["new_hits"]] + [v["node"] for v in value["hits"]])[0])
 
+					for hit in value["hits"]:
+						if hit["node"] in uniqs and hit["node"] not in all_nodes:
+							all_hits.append(hit)
+							all_nodes.add(hit["node"])
+							nodes["old"].append(hit["node"])
+					for hit in value["new_hits"]:
+						if hit["node"] in uniqs and hit["node"] not in all_nodes:
+							all_hits.append(hit)
+							all_nodes.add(hit["node"])
+							nodes["new"].append(hit["node"])
+
+					del value["new_hits"]
+					value["nodes"] = nodes
+					value["hits"] = all_hits
 			with gzip.open(self.save_folder + "/" + old_file, "wt") as new_gz:
 				new_gz.write(json.dumps(gd))
 
@@ -253,8 +291,17 @@ class Combiner:
 		''' Save new clusters that weren't combined into old clusters into one pickle file. '''
 		for done in done_news:
 			del new_clusters[done]
-		with open(self.save_folder + "/completely_new_clusters.pkl", "wb") as pf:
-			pickle.dump(new_clusters, pf)
+		toadd = []
+		new_cluster_i = 0
+		for key, value in new_clusters.items():
+			toadd.append([self.new_cluster_prefix + "_" + key, value])
+		for i in range(0, len(toadd), 10000):
+			with gzip.open(self.save_folder + "/{}_n_clusters_{}.gz".format(self.new_cluster_prefix, new_cluster_i), "wt") as gzf:
+				d = {}
+				for v in toadd[i:i+10000]:
+					d[v[0]] = v[1]
+				gzf.write(json.dumps(d))
+				new_cluster_i += 1
 
 if __name__ == "__main__":
 
@@ -264,8 +311,17 @@ if __name__ == "__main__":
 	parser.add_argument("--link_file", help="Link file. Will be gz file.")
 	parser.add_argument("--link_folder", help="Location of the link folder. Use this if linking is done and want to combine them.")
 	parser.add_argument("--save_folder", help="Location of the save folder, where new combined clusters will be saved.")
+	parser.add_argument("--new_cluster_prefix", help="Prefix for new clusters, so no overlap", required=True)
+	parser.add_argument("--type", help="Which type to use, default = fin", default="fin")
 
 	args = parser.parse_args()
 	print(args)
-	c = Combiner(args.old_file_folder, args.new_file_folder, args.link_file, args.link_folder, args.save_folder, args.min_count, args.max_count, args.discard_olds)
-	c.combine_clusters()
+	c = Combiner(args.old_file_folder, args.new_file_folder, args.link_file, args.link_folder, args.save_folder, args.new_cluster_prefix, args.type)
+	if not os.path.exists(args.save_folder):
+		os.makedirs(args.save_folder)
+	if os.path.exists(args.link_file):
+		with gzip.open(args.link_file, "rt") as gzf:
+			links = json.loads(gzf.read())
+		c.combine_links_clusters(links)
+	else:
+		c.start_combining_clusters()

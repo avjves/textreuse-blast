@@ -121,7 +121,6 @@ class MultipleBlastRunner:
 		with open(self.output_folder + "/info/iter_{}/query.fsa".format(self.iter), "w") as query_file:
 			subprocess.call("blastdbcmd -db {} -entry {}".format("{}/db/textdb".format(self.output_folder), gi_index).split(" "), stdout=query_file)
 		self.query_loc = "{}/info/iter_{}/query.fsa".format(self.output_folder, self.iter)
-		self.lowercase_query()
 
 	def lowercase_query(self):
 		with open(self.query_loc, "r") as query_file:

@@ -17,12 +17,16 @@ if __name__ == "__main__":
 	parser.add_argument("--split_size", default=0, type=int)
 	parser.add_argument("--language", help="Language to use.", default="FIN")
 	args = parser.parse_args()
-	dp = DataPreparer(data_location=args.data_location, output_folder=args.output_folder, language=args.language, threads=args.threads, split_size=args.split_size)
+	dp = DataPreparer(data_location=args.data_folder, output_folder=args.output_folder, language=args.language, threads=args.threads, split_size=args.split_size)
 	dp.prepare_data()
 	text_count = dp.get_text_count()
-	runner = SingleBlastRunner(data=args.data_location, output_folder=args.output_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, text_count=text_count)
+	runner = SingleBlastRunner(data=args.data_folder, output_folder=args.output_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, text_count=text_count)
 	runner.run()
-	clusterizer = Clusterizer(output_folder=args.output_folder, min_length=min_l, max_length=max_l, threads=args.threads, node_similarity=0.90, pre_split=False)
+	clusterizer = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=0.90, pre_split=False, clusters_per_file=1000, min_alignment_score=0.0)
 	clusterizer.clusterize()
-	filler = ClusterFiller(output_folder=args.output_folder, threads=args.threads, language=args.language)
+	data_dbs = None
+	info_dbs = None
+	custom_unfilled = None
+	custom_filled = None
+	filler = ClusterFiller(output_folder=args.output_folder, threads=args.threads, language=args.language, split_size=args.split_size, data_dbs=data_dbs, info_dbs=info_dbs, custom_unfilled=custom_unfilled, custom_filled=custom_filled, min_count=0)
 	c = filler.fill_clusters()
