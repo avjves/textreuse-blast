@@ -208,7 +208,7 @@ class Clusterizer:
 		self.max_length = max_length
 		self.threads = threads
 		self.pre_split = pre_split
-		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, compress)
+		self.parallelizer = ParallelJobRunner(output_folder, min_length, max_length, node_similarity, None, compress)
 		self.community = CommunityDetector()
 		self.clusters_per_file = clusters_per_file
 		self.min_alignment_score = min_alignment_score
@@ -497,23 +497,15 @@ if __name__ == "__main__":
 	parser.add_argument("--threads", help="Number of threads to use. Default = 1", default=1, type=int)
 	parser.add_argument("--pre_split", help="If the data is presplit and needs to be flattened. Default = False", action="store_true", default=False)
 	parser.add_argument("--compress", help="If the data should be compressed mid clusterizing. Default = False", default=False)
-	parser.add_argument("--files_per_iter", help="Number of files to read for iteration. Only used if using version 2. Default 20", default=20)
+	parser.add_argument("--files_per_iter", help="Number of files to read for iteration. Default 20", default=20)
 	parser.add_argument("--clusters_per_file", help="Number of clusters to save per file. Default = 1000", default=1000, type=int)
 	parser.add_argument("--min_align_score", help="Minimum alignment score. i.e how similar two hits are. Default = 0.0, so BLAST decides everything", default=0.0, type=float)
-	parser.add_argument("--alignment_ranges", help="Hit length ranges and what min align score to use there. e.g. 0,0.85,100;100,0.75,150; Ver2 ONLY", default=None, type=str)
-	parser.add_argument("--start_round", help="Dev option. Will cluster only from this round in ver 2 mode.", default=-1, type=int)
-	parser.add_argument("--end_round", help="Dev option. Will cluster only to this  round in ver 2 mode.", default=-1, type=int)
-	parser.add_argument("--ver", help="Cluzerizing method. ver = 1 clusterizes everything at the same time, thus loading everything into memory at once. 2 does it in batches. Default = 1", default="1")
+	parser.add_argument("--alignment_ranges", help="Hit length ranges and what min align score to use there. e.g. 0,0.85,100;100,0.75,150", default=None, type=str)
+	parser.add_argument("--start_round", help="Dev option.", default=-1, type=int)
+	parser.add_argument("--end_round", help="Dev option.", default=-1, type=int)
 	args = parser.parse_args()
 
 
-	if args.ver == "1":
-		c = Clusterizer(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score)
-		c.clusterize()
-	elif args.ver == "2":
-		c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round, alignment_ranges=args.alignment_ranges)
-		c.clusterize()
-	else:
-
-		logging.info("WRONG VERSION SET")
+	c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round, alignment_ranges=args.alignment_ranges)
+	c.clusterize()
 	logging.info("Done clusterizing...")

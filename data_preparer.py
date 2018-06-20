@@ -118,14 +118,7 @@ if __name__ == "__main__":
 	parser.add_argument("--output_folder", help="A folder where all data will be stored in the end.", required=True)
 	parser.add_argument("--language", help="Encoding language", default="FIN")
 	parser.add_argument("--split_size", type=int, help="If needed to split the data prior to entering it into the DB", default=-1)
-
-	parser.add_argument("--multiple", action="store_true", default=False)
-	parser.add_argument("--data_folders", help="Folders to use. type: path1;name1;path2;name2")
-
 	args = parser.parse_args()
 
-	if not args.multiple:
-		dp = DataPreparer(args.data_location, args.output_folder, args.threads, args.language, args.split_size)
-	else:
-		dp = MultipleDataPreparer(args.data_folders, args.output_folder, args.threads, args.language, args.split_size)
+	dp = DataPreparer(args.data_location, args.output_folder, args.threads, args.language, args.split_size)
 	dp.prepare_data()

@@ -178,7 +178,7 @@ if __name__ == "__main__":
 	parser.add_argument("--custom_info_DBs", help="If you want to use custom info DBs. Specify the paths like 'path1;path2'", default=None)
 	parser.add_argument("--custom_unfilled", help="Custom location of unfilled files.")
 	parser.add_argument("--custom_filled", help="Custom location of to-be filled files.")
-	parser.add_argument("--min_count", help="Min count", type=int, default=0)
+	parser.add_argument("--min_count", help="Min count. Dev option.", type=int, default=0)
 
 	args = parser.parse_args()
 	print("Arguments:")
