@@ -3,7 +3,7 @@ from copy import deepcopy
 from shutil import copytree, rmtree, copyfile
 from blast import MultipleBlastRunner
 from time import time
-
+from text_logging import get_logger
 
 ''' to run on a cluster computer, it might be helpful to copy db to the hardrive of the node
 	This file can be run instead of blast.py. Will make sure the data is on the node before running
@@ -59,12 +59,12 @@ def copy_local_data_back(output_folder, batch_folder, iter):
 def run_normal(args):
 	if args.local_folder != None:
 		copy_output_folder_to_local(args.output_folder, args.local_folder)
-		runner = MultipleBlastRunner(output_folder=args.local_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count)
+		runner = MultipleBlastRunner(output_folder=args.local_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count, logger=args.logger)
 		runner.run()
 		copy_local_data_back(args.local_folder, args.batch_folder, args.iter)
 		#delete_local_data(args.local_folder)
 	else:
-		runner = MultipleBlastRunner(output_folder=args.output_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count)
+		runner = MultipleBlastRunner(output_folder=args.output_folder, e_value=args.e_value, word_size=args.word_size, threads=args.threads, iter=args.iter, queries_per_iter=args.qpi, text_count=args.text_count, logger=args.logger)
 		runner.run()
 		copy_local_data_back(args.output_folder, args.batch_folder, args.iter)
 
@@ -92,11 +92,7 @@ def run_taito_timelimit(args):
 			break
 		print("Iter {}".format(i))
 		new_args = deepcopy(args)
-		if i_i == 0:
-			args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
-		#	args.local_folder = None
-		else:
-			args.local_folder = None
+		args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
 		new_args.iter = i
 		new_args.qpi = 1
 		run_normal(new_args)
@@ -127,9 +123,14 @@ if __name__ == "__main__":
 	parser.add_argument("--iter", help="Current iteration", type=int, required=True)
 	parser.add_argument("--text_count", help="Text count", type=int, required=True)
 	parser.add_argument("--qpi", help="Queries per iteration", type=int, required=True)
+	parser.add_argument("--log_file", help="Whether to save logging into file as well.", default=None)
 	parser.add_argument("--preset", help="Some presets for certain systems.")
 	parser.add_argument("--preset_info", help="Extra information for a given preset.")
 	args = parser.parse_args()
+
+	##logging
+	logger = get_logger(args.log_file)
+	args.logger = logger
 
 	if args.preset == "taito":
 		run_taito(args)

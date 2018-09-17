@@ -1,4 +1,4 @@
-import argparse, logging, os, sys, json, gzip, lmdb, math
+import argparse, os, sys, json, gzip, lmdb, math
 #from blast import SingleBlastRunner
 from joblib import Parallel, delayed
 from text_encoder import TextEncoder
@@ -16,13 +16,12 @@ class DataEncoder:
 
 	def encode_data(self):
 		if self.db_name != None:
-			logging.info("Encoding {} data to proteins...".format(self.db_name))
+			#self.logger.info("Encoding {} data to proteins...".format(self.db_name))
 			text_db = self.open_database("original_data_{}_DB".format(self.db_name))
 			keys = self.get_keys(text_db)
 			Parallel(n_jobs=self.threads)(delayed(self.encode_text)(key_list, index, self.db_name) for index, key_list in enumerate(keys))
 			self.make_encoded_data_DB(self.db_name)
 		else:
-			logging.info("Encoding data to proteins...")
 			text_db = self.open_database("original_data_DB")
 			keys = self.get_keys(text_db)
 			Parallel(n_jobs=self.threads)(delayed(self.encode_text)(key_list, index) for index, key_list in enumerate(keys))

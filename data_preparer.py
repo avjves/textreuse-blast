@@ -1,17 +1,18 @@
-from data_encoder import DataEncoder
-import argparse, logging, os, json, subprocess, gzip, lmdb
-logging.basicConfig(level=0)
 
+from data_encoder import DataEncoder
+import argparse, os, json, subprocess, gzip, lmdb
+from text_logging import get_logger
 
 class DataPreparer:
 
-	def __init__(self, data_location, output_folder, threads, language, split_size):
+	def __init__(self, data_location, output_folder, threads, language, split_size, logger):
 		self.data_location = data_location
 		self.output_folder = output_folder
 		self.threads = threads
 		self.language = language
 		self.data_encoder = DataEncoder(data_location, output_folder, threads, language)
 		self.split_size = split_size
+		self.logger = logger
 
 	def make_directory(self, where):
 		if not os.path.exists(where):
@@ -21,6 +22,7 @@ class DataPreparer:
 	def prepare_data(self):
 		self.initial_setup(self.output_folder)
 		self.data_to_lmdb()
+		self.logger.info("Encoding data to proteins...")
 		self.data_encoder.encode_data()
 		self.generate_db()
 
@@ -32,7 +34,7 @@ class DataPreparer:
 			yield block["text"], str(block["doc_id"])
 	## Generate a LMDB DB for the original data. Helps in reconstructing phase, this is done with just ONE thread :c
 	def data_to_lmdb(self):
-		logging.info("Loading original data into databases...")
+		self.logger.info("Loading original data into databases...")
 		text_db, info_db = self.open_databases()
 		files, folder = self.get_data_files()
 		with text_db.begin(write=True) as t_db, info_db.begin(write=True) as i_db:
@@ -74,7 +76,7 @@ class DataPreparer:
 
 	## Generate the protein database for BLAST
 	def generate_db(self):
-		logging.info("Generating protein database..")
+		self.logger.info("Generating protein database..")
 		self.make_fasta_file()
 		self.make_db()
 
@@ -104,7 +106,7 @@ class DataPreparer:
 
 	## Make intial folders for later
 	def initial_setup(self, where):
-		logging.info("Performing initial setups...")
+		self.logger.info("Performing initial setups...")
 		self.make_directory(where)
 		for location in ["encoded", "db", "subgraphs", "info", "batches", "clusters", "clusters/unfilled", "clusters/filled"]:
 			self.make_directory(where + "/" + location)
@@ -120,5 +122,7 @@ if __name__ == "__main__":
 	parser.add_argument("--split_size", type=int, help="If needed to split the data prior to entering it into the DB", default=-1)
 	args = parser.parse_args()
 
-	dp = DataPreparer(args.data_location, args.output_folder, args.threads, args.language, args.split_size)
+	logger = get_logger()
+
+	dp = DataPreparer(args.data_location, args.output_folder, args.threads, args.language, args.split_size, logger)
 	dp.prepare_data()

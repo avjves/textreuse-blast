@@ -1,4 +1,4 @@
-import os, sys, json, gzip, logging, tarfile, argparse, shelve
+import os, sys, json, gzip, tarfile, argparse, shelve
 import networkx as nx
 from operator import itemgetter
 from natsort import natsorted
@@ -6,16 +6,16 @@ from joblib import Parallel, delayed
 from collections import defaultdict
 
 from community import CommunityDetector
-logging.basicConfig(level=0)
 
 class ParallelJobRunner:
 
-	def __init__(self, output_folder, min_length, max_length, node_similarity, alignment_ranges, compress):
+	def __init__(self, output_folder, min_length, max_length, node_similarity, alignment_ranges, compress, logger):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
 		self.alignment_ranges = alignment_ranges
 		self.node_similarity = node_similarity
+		self.logger = logger
 
 		## Read data, can be either tsv files or gzipped tar files
 	def read_data_parallel(self, filename, file_index, min_alignment_score):
@@ -214,7 +214,7 @@ class Clusterizer:
 		self.min_alignment_score = min_alignment_score
 
 	def clusterize(self):
-		logging.info("Starting clusterizing, using {} cores...".format(self.threads))
+		self.logger.info("Starting clusterizing, using {} cores...".format(self.threads))
 		data = self.read_data()
 		data = self.flatten_data(data)
 		nodes = self.find_nodes(data)
@@ -225,7 +225,7 @@ class Clusterizer:
 
 		## Read the data in parallel, combine results into one dictionary, data = dictionary, key = id (file1), value = list of hsps
 	def read_data(self):
-		logging.info("Reading data...")
+		self.logger.info("Reading data...")
 		files = os.listdir(self.output_folder + "/batches")
 		datas = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.read_data_parallel)(filename, file_index, self.min_alignment_score) for file_index, filename in enumerate(files))
 		data = {key: value for data_dictionary in datas for key, value in data_dictionary.items()}
@@ -236,7 +236,7 @@ class Clusterizer:
 		if not self.pre_split:
 			return data
 		else:
-			logging.info("Flattening data...")
+			self.logger.info("Flattening data...")
 			## First gather all subkey datas
 			temp_data = self.gather_sub_key_data(data)
 			## Parallelize flattening
@@ -260,7 +260,7 @@ class Clusterizer:
 
 		## Finds all nodes (offset_start, offset_end) for every key
 	def find_nodes(self, data):
-		logging.info("Finding nodes...")
+		self.logger.info("Finding nodes...")
 
 		node_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.find_nodes_parallel)(key, value) for key, value in data.items())
 		nodes = {}
@@ -276,7 +276,7 @@ class Clusterizer:
 
 		## Make strings from the hsps values
 	def stringify_data(self, data):
-		logging.info("Stringifying data...")
+		self.logger.info("Stringifying data...")
 		stringified_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.stringify_data_parallel)(key, value) for key, value in data.items())
 		data = {key: value for data_dictionary in stringified_dicts for key, value in data_dictionary.items()}
 		return data
@@ -284,7 +284,7 @@ class Clusterizer:
 
 		## Calculate mean / centroid nodes, so two nodes that are almost same will be considered one
 	def calculate_node_similarities(self, nodes):
-		logging.info("Calculating node similarities...")
+		self.logger.info("Calculating node similarities...")
 		maps = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.calculate_node_similarities_parallel)(key, value) for key, value in nodes.items())
 		mapping = {}
 		for data_map in maps:
@@ -293,7 +293,7 @@ class Clusterizer:
 
 
 	def make_data_list(self, data, mapping):
-		logging.info("Making disjoint data list...")
+		self.logger.info("Making disjoint data list...")
 		#graph = nx.Graph()
 		data_list = []
 		#for key, pairs in data.items():
@@ -370,7 +370,7 @@ class ClusterizerVol2(Clusterizer):
 		self.end_round = end_round
 
 	def clusterize(self):
-		logging.info("Starting clusterizing, using {} cores...".format(self.threads))
+		self.logger.info("Starting clusterizing, using {} cores...".format(self.threads))
 		current_iteration = 0
 		current_round = 0
 		if self.start_round > -1:
@@ -390,7 +390,7 @@ class ClusterizerVol2(Clusterizer):
 	def clusterize_current_files(self, current_round, file_count):
 		current_iteration = 0
 		for i in range(0, file_count, self.files_per_iteration):
-			logging.info("Clusterized {}/{} folders, iteration {}, {} per iteration...".format(i, file_count, current_iteration, self.files_per_iteration))
+			self.logger.info("Clusterized {}/{} folders, iteration {}, {} per iteration...".format(i, file_count, current_iteration, self.files_per_iteration))
 			data = self.read_data(current_iteration, current_round)
 			if current_round == 0:
 				data = self.flatten_data(data)
@@ -403,7 +403,7 @@ class ClusterizerVol2(Clusterizer):
 			current_iteration += 1
 
 	def find_nodes(self, data):
-		logging.info("Finding nodes...")
+		self.logger.info("Finding nodes...")
 		node_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.find_nodes_parallel)(key, value) for key, value in data.items())
 		nodes = {}
 		for node_dict in node_dicts:
@@ -435,7 +435,7 @@ class ClusterizerVol2(Clusterizer):
 		return len(files)
 
 	def read_data(self, current_iteration, current_round):
-		logging.info("Reading data...")
+		self.logger.info("Reading data...")
 		files = []
 		if current_round == 0:
 			folder = self.output_folder + "/batches"
@@ -508,4 +508,4 @@ if __name__ == "__main__":
 
 	c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round, alignment_ranges=args.alignment_ranges)
 	c.clusterize()
-	logging.info("Done clusterizing...")
+	self.logger.info("Done clusterizing...")
