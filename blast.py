@@ -84,7 +84,7 @@ class SingleBlastRunner:
 
 class MultipleBlastRunner:
 
-	def __init__(self, output_folder, e_value, word_size, threads, iter, queries_per_iter, text_count):
+	def __init__(self, output_folder, e_value, word_size, threads, iter, queries_per_iter, text_count, logger):
 		self.output_folder=output_folder
 		self.e_value=e_value
 		self.word_size=word_size
@@ -92,6 +92,7 @@ class MultipleBlastRunner:
 		self.iter = iter
 		self.queries_per_iter = queries_per_iter
 		self.text_count = text_count
+		self.logger = logger
 		self.db_loc = output_folder + "/db/textdb"
 
 
@@ -142,4 +143,4 @@ class MultipleBlastRunner:
 
 	def compress_results(self):
 		self.logger.info("Compressing results...")
-		subprocess.call("tar -zcf {}/iter_{}.tar.gz -C {}/iter_{} . --remove-files --warning none".format(self.output_folder + "/batches", self.iter, self.output_folder + "/batches", self.iter).split(" "))
+		subprocess.call("tar -zcf {}/iter_{}.tar.gz -C {}/iter_{} . --warning none".format(self.output_folder + "/batches", self.iter, self.output_folder + "/batches", self.iter).split(" "))

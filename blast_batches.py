@@ -2,7 +2,7 @@ import argparse, os, time, subprocess
 from copy import deepcopy
 from shutil import copytree, rmtree, copyfile
 from blast import MultipleBlastRunner
-from time import time
+import time
 from text_logging import get_logger
 
 ''' to run on a cluster computer, it might be helpful to copy db to the hardrive of the node
@@ -22,6 +22,7 @@ def get_folder_size(folder):
 	must first check if something is already being copied and then wait until it's done '''
 
 def copy_output_folder_to_local(output_folder, local_folder, wait=True, wait_time=5):
+	logger.info("Copying {} to {}...".format(output_folder, local_folder))
 	if wait:
 		if os.path.exists(local_folder):
 			print("Folder exists.")
@@ -80,7 +81,7 @@ def run_taito(args):
 def run_taito_timelimit(args):
 	print("Using preset: Taito-timelimit")
 	start_time_in_minutes, min_time_in_minutes = args.preset_info.split(";")
-	start_time = time()
+	start_time = time.time()
 
 
 	for i_i, i in enumerate(range(args.iter*args.qpi, (args.iter+1)*args.qpi)):
@@ -91,8 +92,8 @@ def run_taito_timelimit(args):
 			print("Not enough time remaining, stopping...")
 			break
 		print("Iter {}".format(i))
-		new_args = deepcopy(args)
-		args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
+		new_args = args
+		new_args.local_folder = os.environ.get("TMPDIR") + "/" + args.output_folder.split("/")[-1]
 		new_args.iter = i
 		new_args.qpi = 1
 		run_normal(new_args)
@@ -102,7 +103,7 @@ def run_taito_timelimit(args):
 ''' Check whether there's enough time to keep running the batch '''
 
 def enough_time(start_time, min_time_in_minutes, start_time_in_minutes):
-	curr_time = time()
+	curr_time = time.time()
 	elapsed = (curr_time - start_time) / 60
 
 	if int(start_time_in_minutes) - elapsed >  int(min_time_in_minutes):
