@@ -8,7 +8,7 @@ def get_logger(log_file=None):
 	st.setFormatter(ft)
 	logger.addHandler(st)
 	if log_file:
-		lf = logging.FileHandler(args.log_file)
+		lf = logging.FileHandler(log_file)
 		lf.setLevel(logging.DEBUG)
 		lf.setFormatter(ft)
 		logger.addHandler(lf)
