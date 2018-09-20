@@ -139,7 +139,7 @@ class MultipleBlastRunner:
 			self.logger.info("Running query: #{}".format(i))
 			self.generate_positive_gi_list(i)
 			self.make_query_file(i)
-			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/iter_" + str(self.iter) + "/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "6", "-gapextend", "2", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-lcase_masking", "-num_threads", str(self.threads)])
+			subprocess.call(["blastp", "-db", self.db_loc, "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/iter_" + str(self.iter) + "/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-lcase_masking", "-num_threads", str(self.threads)])
 
 	def compress_results(self):
 		self.logger.info("Compressing results...")
