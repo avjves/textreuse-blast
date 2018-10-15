@@ -1,12 +1,12 @@
 from data_encoder import DataEncoder
-import argparse, logging, os, json, subprocess, gzip, lmdb
-logging.basicConfig(level=0)
+import argparse, os, json, subprocess, gzip, lmdb
 
 from data_preparer import DataPreparer
+from text_logging import get_logger
 
 class MultipleDataPreparer(DataPreparer):
 
-	def __init__(self, data_folder, output_folder, threads, language, split_size):
+	def __init__(self, data_folder, output_folder, threads, language, split_size, logger):
 		self.data_folder = data_folder
 		self.output_folder = output_folder
 		self.language = language
@@ -14,6 +14,7 @@ class MultipleDataPreparer(DataPreparer):
 		self.threads = threads
 		self.gi = 1
 		self.text_counts = []
+		self.logger = logger
 
 	def prepare_data(self):
 		self.initial_setup(self.output_folder)
@@ -32,7 +33,7 @@ class MultipleDataPreparer(DataPreparer):
 			data_encoder.encode_data()
 			self.make_fasta_file(data_folder_name)
 			self.clean_encoded()
-			logging.info("Added DB: {} \t {} new texts".format(data_folder_name, self.text_counts[-1][1]))
+			self.logger.info("Added DB: {} \t {} new texts".format(data_folder_name, self.text_counts[-1][1]))
 		self.save_text_counts()
 		self.make_db()
 
@@ -61,7 +62,7 @@ class MultipleDataPreparer(DataPreparer):
 
 	## Generate the protein database for BLAST
 	def generate_db(self, data_folder_name, data_folder_path):
-		logging.info("Generating {} protein database..".format(data_folder_name))
+		self.logger.info("Generating {} protein database..".format(data_folder_name))
 		self.make_fasta_file(data_folder_name)
 		self.make_db()
 
@@ -100,7 +101,7 @@ class MultipleDataPreparer(DataPreparer):
 
 	## Generate a LMDB DB for the original data. Helps in reconstructing phase, this is done with just ONE thread :c
 	def data_to_lmdb(self, data_folder_name, data_folder_path):
-		logging.info("Loading original data from {} into databases...".format(data_folder_name))
+		self.logger.info("Loading original data from {} into databases...".format(data_folder_name))
 		text_db, info_db = self.open_databases(data_folder_name)
 		files, folder = self.get_data_files(data_folder_path)
 		with text_db.begin(write=True) as t_db, info_db.begin(write=True) as i_db:
@@ -131,5 +132,7 @@ if __name__ == "__main__":
 	parser.add_argument("--split_size", type=int, help="If needed to split the data prior to entering it into the DB", default=-1)
 	args = parser.parse_args()
 
-	dp = MultipleDataPreparer(args.data_folders, args.output_folder, args.threads, args.language, args.split_size)
+	logger = get_logger()
+
+	dp = MultipleDataPreparer(args.data_folders, args.output_folder, args.threads, args.language, args.split_size, logger)
 	dp.prepare_data()

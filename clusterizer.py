@@ -6,16 +6,15 @@ from joblib import Parallel, delayed
 from collections import defaultdict
 
 from community import CommunityDetector
-
+from text_logging import get_logger
 class ParallelJobRunner:
 
-	def __init__(self, output_folder, min_length, max_length, node_similarity, alignment_ranges, compress, logger):
+	def __init__(self, output_folder, min_length, max_length, node_similarity, alignment_ranges, compress):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
 		self.alignment_ranges = alignment_ranges
 		self.node_similarity = node_similarity
-		self.logger = logger
 
 		## Read data, can be either tsv files or gzipped tar files
 	def read_data_parallel(self, filename, file_index, min_alignment_score):
@@ -353,7 +352,7 @@ class Clusterizer:
 
 class ClusterizerVol2(Clusterizer):
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, clusters_per_file, min_alignment_score, start_round, end_round, alignment_ranges, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, files_per_iteration, clusters_per_file, min_alignment_score, start_round, end_round, alignment_ranges, logger, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -368,6 +367,7 @@ class ClusterizerVol2(Clusterizer):
 		self.alignment_ranges = alignment_ranges
 		self.start_round = start_round
 		self.end_round = end_round
+		self.logger = logger
 
 	def clusterize(self):
 		self.logger.info("Starting clusterizing, using {} cores...".format(self.threads))
@@ -503,9 +503,11 @@ if __name__ == "__main__":
 	parser.add_argument("--alignment_ranges", help="Hit length ranges and what min align score to use there. e.g. 0,0.85,100;100,0.75,150", default=None, type=str)
 	parser.add_argument("--start_round", help="Dev option.", default=-1, type=int)
 	parser.add_argument("--end_round", help="Dev option.", default=-1, type=int)
+	parser.add_argument("--log_file", help="Whether to log output to a log file as well as stdin", default=None)
 	args = parser.parse_args()
 
+	logger = get_logger(args.log_file)
 
-	c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round, alignment_ranges=args.alignment_ranges)
+	c = ClusterizerVol2(output_folder=args.output_folder, min_length=args.min_length, max_length=args.max_length, threads=args.threads, node_similarity=args.node_similarity,  pre_split=args.pre_split, compress=args.compress, files_per_iteration=args.files_per_iter, clusters_per_file=args.clusters_per_file, min_alignment_score=args.min_align_score, start_round=args.start_round, end_round=args.end_round, alignment_ranges=args.alignment_ranges, logger=logger)
 	c.clusterize()
-	self.logger.info("Done clusterizing...")
+	logger.info("Done clusterizing...")
