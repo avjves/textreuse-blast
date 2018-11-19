@@ -16,7 +16,7 @@ class ParallelJobRunner:
 		self.alignment_ranges = alignment_ranges
 		self.node_similarity = node_similarity
 
-		## Read data, can be either tsv files or gzipped tar files
+		# Read data, can be either tsv files or gzipped tar files
 	def read_data_parallel(self, filename, file_index, min_alignment_score):
 		file_loc = self.output_folder + "/batches/" + filename
 		data = {}
@@ -47,8 +47,8 @@ class ParallelJobRunner:
 		if file_style == "clustered":
 			with gzip.open(filename, "rt") as gzf:
 				gd = json.loads(gzf.read())
-			for key, value in gd.items():
-				nodes = value[0]
+			for key in sorted(list(gd.keys())):
+				nodes = gd[key][0]
 				start_node = nodes.pop(0)
 				start_node_doc = start_node.split("___")[0]
 				data[start_node_doc] = data.get(start_node_doc, [])
@@ -56,7 +56,7 @@ class ParallelJobRunner:
 					data[start_node_doc].append([start_node, node])
 		else:
 			data = self.read_data_parallel(filename, file_index, min_alignment_score)
-		return data
+		return (data, file_index)
 
 		## Read the actual TSV file
 	def process_tsv(self, data, min_alignment_score):
@@ -92,14 +92,12 @@ class ParallelJobRunner:
 		for sub_key_data in value:
 			sub_key = sub_key_data[0]
 			query_index_start = int(sub_key.split("___")[0].split("__")[-1].split("_")[0])
-			#query_index_start = int(sub_key.split("__")[1].split("_")[0])
 			query_extra = 0
 			if query_index_start != 0: ## To get actual offset values
 				query_extra = query_index_start
 
 			for hsp in sub_key_data[1]:
 				q_start, q_end, h_start, h_end, length, other_key = hsp
-				#hit_index_start = int(other_key.split("__")[1].split("_")[0])
 				hit_index_start = int(other_key.split("___")[0].split("__")[-1].split("_")[0])
 				hit_extra = 0
 				if hit_index_start != 0: ## Same here
@@ -115,7 +113,7 @@ class ParallelJobRunner:
 		flattened_data[key] = real_hsps
 		return flattened_data
 
-	def find_nodes_parallel(self, key, value):
+	def find_nodes_parallel(self, key, value, itern):
 		nodes = {}
 		for hsp in value:
 			if type(hsp[0]) == str:
@@ -130,21 +128,21 @@ class ParallelJobRunner:
 			other_key = hsp[5]
 			nodes.setdefault(key, []).append(begin_node)
 			nodes.setdefault(other_key, []).append(end_node)
-		return nodes
+		return (nodes, itern)
 
 	def stringify(self, key, node):
 		return "{}___{}_{}".format(key, node[0], node[1])
 
-	def stringify_data_parallel(self, key, value):
+	def stringify_data_parallel(self, key, value, itern):
 		data = {}
 		data[key] = []
 		for hsp in value:
 			begin = self.stringify(key, hsp[0:2])
 			end = self.stringify(hsp[5], hsp[2:4])
 			data[key].append([begin, end])
-		return data
+		return (data, itern)
 
-	def calculate_node_similarities_parallel(self, key, nodes):
+	def calculate_node_similarities_parallel(self, key, nodes, itern):
 		nodes.sort(key=itemgetter(0)) ## Sort by starting offset
 		new_nodes = []
 		mapping = {}
@@ -171,7 +169,7 @@ class ParallelJobRunner:
 			for node in new_node_nodes:
 				mapping[self.stringify(key, node)] = new_node
 
-		return mapping
+		return (mapping, itern)
 
 
 
@@ -276,29 +274,38 @@ class Clusterizer:
 		## Make strings from the hsps values
 	def stringify_data(self, data):
 		self.logger.info("Stringifying data...")
-		stringified_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.stringify_data_parallel)(key, value) for key, value in data.items())
-		data = {key: value for data_dictionary in stringified_dicts for key, value in data_dictionary.items()}
+		data_to_feed = []
+		for key in sorted(list(data.keys())):
+			data_to_feed.append((key, data[key]))
+		stringified_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.stringify_data_parallel)(key, value, itern) for itern, (key, value) in enumerate(data_to_feed))
+		stringified_dicts.sort(key=itemgetter(1))
+		data = {}
+		for (data_dictionary, itern) in stringified_dicts:
+			for key, value in data_dictionary.items():
+				data[key] = value
 		return data
 
 
 		## Calculate mean / centroid nodes, so two nodes that are almost same will be considered one
 	def calculate_node_similarities(self, nodes):
 		self.logger.info("Calculating node similarities...")
-		maps = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.calculate_node_similarities_parallel)(key, value) for key, value in nodes.items())
-		mapping = {}
-		for data_map in maps:
+		data_to_feed = []
+		for key in sorted(list(nodes.keys())):
+			data_to_feed.append((key, nodes[key]))
+		maps = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.calculate_node_similarities_parallel)(key, value, itern) for itern, (key, value) in enumerate(data_to_feed))
+		maps.sort(key=itemgetter(1))
+		from collections import OrderedDict
+		mapping = OrderedDict()
+		for (data_map, itern) in maps:
 			mapping.update(data_map)
 		return mapping
 
 
 	def make_data_list(self, data, mapping):
 		self.logger.info("Making disjoint data list...")
-		#graph = nx.Graph()
 		data_list = []
-		#for key, pairs in data.items():
-		#	for edgepair in pairs:
-		#		graph.add_edge(mapping[edgepair[0]], mapping[edgepair[1]])
-		for key, pairs in data.items():
+		for key in sorted(list(data.keys())):
+			pairs = data[key]
 			for edgepair in pairs:
 				data_list.append((mapping[edgepair[0]], mapping[edgepair[1]]))
 		return data_list
@@ -307,23 +314,29 @@ class Clusterizer:
 	## According to https://stackoverflow.com/a/20167281
 
 	def indices_dict(self, data):
-	    d = defaultdict(list)
-	    for i,(a,b) in enumerate(data):
-	        d[a].append(i)
-	        d[b].append(i)
-	    return d
+		d = defaultdict(list)
+		for i,(a,b) in enumerate(data):
+			d[a].append(i)
+			d[b].append(i)
+		return d
 
 	def disjoint_data_indices(self, data):
-	    d = self.indices_dict(data)
-	    sets = []
-	    while len(d):
-	        que = set(d.popitem()[1])
-	        ind = set()
-	        while len(que):
-	            ind |= que
-	            que = set([y for i in que for x in data[i] for y in d.pop(x, [])]) - ind
-	        sets += [ind]
-	    return sets
+		d = self.indices_dict(data)
+		d_keys = sorted(list(d.keys()))
+		d_set_keys = set(d_keys)
+		sets = []
+		while len(d):
+			while True:
+				d_key = d_keys.pop(0)
+				if d_key in d:
+					break
+			que = set(d.pop(d_key))
+			ind = set()
+			while len(que):
+				ind |= que
+				que = set([y for i in que for x in data[i] for y in d.pop(x, [])]) - ind
+			sets += [ind]
+		return sets
 
 	def generate_disjoint_components(self, data):
 		return [set([x for i in s for x in data[i]]) for s in self.disjoint_data_indices(data)]
@@ -333,7 +346,6 @@ class Clusterizer:
 		save_index = 0
 		clusters = {}
 		for disjoint_set in self.generate_disjoint_components(data_list):
-			nodes = list(disjoint_set)
 			new_clusters = self.community.detect(nodes, None)
 			for new_cluster in new_clusters:
 				clusters["cluster_{}".format(cluster_index)] = new_cluster
@@ -404,9 +416,13 @@ class ClusterizerVol2(Clusterizer):
 
 	def find_nodes(self, data):
 		self.logger.info("Finding nodes...")
-		node_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.find_nodes_parallel)(key, value) for key, value in data.items())
+		data_to_feed = []
+		for key in sorted(list(data.keys())):
+			data_to_feed.append((key, data[key]))
+		node_dicts = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.find_nodes_parallel)(key, value, itern) for itern, (key, value) in enumerate(data_to_feed))
+		node_dicts.sort(key=itemgetter(1))
 		nodes = {}
-		for node_dict in node_dicts:
+		for (node_dict, itern) in node_dicts:
 			for key, value in node_dict.items():
 				if key in nodes:
 					nodes[key] += value
@@ -451,25 +467,22 @@ class ClusterizerVol2(Clusterizer):
 
 		if current_round == 0:
 			datas = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.read_data_parallel_iterations)(filename, file_index, self.minimum_alignment_score, "batches") for file_index, filename in enumerate(files))
-			data = {key: value for data_dictionary in datas for key, value in data_dictionary.items()}
+			data = {key: value for (data_dictionary, itern) in datas for key, value in data_dictionary.items()}
 		else:
 			datas = Parallel(n_jobs=self.threads)(delayed(self.parallelizer.read_data_parallel_iterations)(filename, file_index, self.minimum_alignment_score, "clustered") for file_index, filename in enumerate(files))
+			datas.sort(key=itemgetter(1))
 			data = {}
-			for data_dict in datas:
-				for key, value in data_dict.items():
-					data[key] = data.get(key, [])
-					data[key] += value
+			for (data_dict, itern) in datas:
+				for start_doc_key, nodes in data_dict.items():
+					data[start_doc_key] = data.get(start_doc_key, [])
+					data[start_doc_key] += nodes
 		return data
 
 	def extract_clusters(self, data_list, iteration, current_round):
-		#subgraphs = nx.connected_component_subgraphs(graph)
 		cluster_index = 0
 		save_index = 0
 		clusters = {}
-		for disjoint_set in self.generate_disjoint_components(data_list):
-	#	for subgraph_index, subgraph in enumerate(subgraphs):
-			#nodes = subgraph.nodes()
-			#edges = subgraph.edges()
+		for disjoint_index, disjoint_set in enumerate(self.generate_disjoint_components(data_list)):
 			nodes = list(disjoint_set)
 			edges = None
 			new_clusters = self.community.detect(nodes, edges)

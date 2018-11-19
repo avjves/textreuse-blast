@@ -42,11 +42,13 @@ class ClusterFiller:
 			else:
 				highest_round = folders[-1].split("_")[1]
 				right_folders = [f for f in folders if "round_{}".format(highest_round) in f]
+				assert len(right_folders) == 1
 			files = []
 			for right_folder in right_folders:
 				right_files = os.listdir("{}/{}".format(self.cluster_folder, right_folder))
 				for right_file in right_files:
 					files.append((right_folder, right_file))
+			files = natsorted(files)
 		else:
 			files = []
 			cfiles = natsorted(os.listdir(self.cluster_folder))
@@ -55,6 +57,7 @@ class ClusterFiller:
 		Parallel(n_jobs=self.threads)(delayed(self.fill_cluster)(folder, filename, index) for index, (folder, filename) in tqdm(enumerate(files)))
 
 	def fill_cluster(self, folder, filename, file_index):
+		print(folder, filename, file_index)
 		if self.custom_data_DBs == None:
 			use_custom_dbs = False
 			orig_db = lmdb.open(self.output_folder + "/db/original_data_DB", readonly=True)
@@ -78,6 +81,10 @@ class ClusterFiller:
 		for cluster_key, cluster_data in data.items():
 			if len(cluster_data[0]) > self.min_count:
 				filled_clusters[cluster_key] = self.fill(cluster_data, o_db, i_db, use_custom_dbs)
+			else:
+				print()
+				print()
+				print("FOUND EMPTY CLUSTER!")
 		self.save_clusters(filled_clusters, file_index)
 
 	def generate_split_indexes(self, indexes):
@@ -94,42 +101,27 @@ class ClusterFiller:
 		skips = []
 		for node in data[0]:
 			text_id = node.split("___")[0]
-			indexes = node.split("___")[1].split("_")[0:2]
+			indexes = node.split("___")[1].split("_")
 			if self.split_size != None and self.split_size > 0:
 				doc_start, doc_end = self.generate_split_indexes(indexes)
 				text_id = "{}__{}_{}".format(text_id, doc_start, doc_end)
 
-			if "_ext" in node:
-				i = 0
-				base = text_id.split("_")[0]
-				texts = []
-				while True:
-					t = self.get_original_text("{}_{}_{}".format(base, i*10000, (i+1)*10000), o_db, use_custom_dbs)
-					if t == None: break
-					texts.append(t)
-					i += 1
-				try:
-					text, indices = self.encoder.decode_text("".join(texts), indexes[0], indexes[1])
-				except IndexError:
-					print(node, indexes)
-					skips.append(node)
-					continue
-			else:
-				orig_text = self.get_original_text(text_id, o_db, use_custom_dbs)
-				try:
-					text, indices = self.encoder.decode_text(orig_text, indexes[0], indexes[1])
-				except IndexError:
-					print(node, indexes)
-					skips.append(node)
-					continue
+			orig_text = self.get_original_text(text_id, o_db, use_custom_dbs)
+			try:
+				text, indices = self.encoder.decode_text(orig_text, indexes[0], indexes[1])
+			except IndexError:
+				print()
+				print("\n\n", "Index Error",node, indexes)
+				skips.append(node)
+				continue
 			hit_data = {}
 			length += len(text)
 			doc_key = node.split("___")[0]
 			for info_db in i_db:
-				info = info_db.get(doc_key.encode("utf-8"))
-				if info == None: continue
-				else:
-					info = json.loads(info.decode("unicode-escape"))
+				info = info_db.get(doc_key.encode("ascii"))
+				if info == None: ##go through all DBs, skip the wrong one
+					continue
+				info = json.loads(info.decode("unicode-escape"))
 
 				for key, value in info.items():
 					hit_data[key] = value
@@ -156,7 +148,7 @@ class ClusterFiller:
 				text = custom_db.get(text_id.replace("__", "_").encode("ascii"))
 				if text != None: break
 		else:
-			text = db.get(text_id.encode("utf-8"))
+			text = db.get(text_id.encode("ascii"))
 		if text == None:
 			return None
 		else:
@@ -173,7 +165,7 @@ if __name__ == "__main__":
 	parser.add_argument("--threads", help="Number of threads to use", default=1, type=int)
 	parser.add_argument("--output_folder", help="A folder where all data will be stored in the end.", required=True)
 	parser.add_argument("--language", help="Encoding language", default="FIN")
-	parser.add_argument("--split_size", help="Split size if splitting was used to prepare the data.", default=None)
+	parser.add_argument("--split_size", help="Split size if splitting was used to prepare the data.", default=None, type=int)
 	parser.add_argument("--custom_data_DBs", help="If you want to use custom data DBs. Specify the paths like 'path1;path2'", default=None)
 	parser.add_argument("--custom_info_DBs", help="If you want to use custom info DBs. Specify the paths like 'path1;path2'", default=None)
 	parser.add_argument("--custom_unfilled", help="Custom location of unfilled files.")

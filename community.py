@@ -1,4 +1,6 @@
 from operator import itemgetter
+from natsort import natsorted
+
 class CommunityDetector:
 
 	def __init__(self, detection_style=None):
@@ -29,6 +31,7 @@ class CommunityDetector:
 			nodes, leng = self.recreate_nodes(key, new_indexes)
 			new_nodes += nodes
 			length += leng
+		new_nodes = natsorted(new_nodes)
 		return [new_nodes, int(length/len(new_nodes))]
 
 
