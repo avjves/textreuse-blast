@@ -39,7 +39,9 @@ class ParallelJobRunner:
 				tsv_data = self.process_tsv(tsv_file.read(), min_alignment_score)
 				data.update(tsv_data)
 		else:
-			raise TypeError("Wrong file format.")
+			pass
+			#print("Skipping file/folder: {}".format(filename))
+		#	raise TypeError("Wrong file format.")
 		return data
 
 	def read_data_parallel_iterations(self, filename, file_index, min_alignment_score, file_style):
@@ -199,7 +201,7 @@ class ParallelJobRunner:
 
 class Clusterizer:
 
-	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, clusters_per_file, min_alignment_score, compress=False):
+	def __init__(self, output_folder, min_length, max_length, threads, node_similarity, pre_split, clusters_per_file, min_alignment_score, logger, compress=False):
 		self.output_folder = output_folder
 		self.min_length = min_length
 		self.max_length = max_length
@@ -209,6 +211,7 @@ class Clusterizer:
 		self.community = CommunityDetector()
 		self.clusters_per_file = clusters_per_file
 		self.min_alignment_score = min_alignment_score
+		self.logger = logger
 
 	def clusterize(self):
 		self.logger.info("Starting clusterizing, using {} cores...".format(self.threads))

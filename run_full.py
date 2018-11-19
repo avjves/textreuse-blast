@@ -34,5 +34,6 @@ if __name__ == "__main__":
 	info_dbs = None
 	custom_unfilled = None
 	custom_filled = None
-	filler = ClusterFiller(output_folder=args.output_folder, threads=args.threads, language=args.language, split_size=args.split_size, data_dbs=data_dbs, info_dbs=info_dbs, custom_unfilled=custom_unfilled, custom_filled=custom_filled, logger=logger, min_count=0)
+	filler = ClusterFiller(output_folder=args.output_folder, threads=args.threads, language=args.language, split_size=args.split_size, data_dbs=data_dbs, info_dbs=info_dbs, custom_unfilled=custom_unfilled, custom_filled=custom_filled, min_count=0)
 	c = filler.fill_clusters()
+	logger.info("Done. Results can be found at {}/clusters/filled".format(args.output_folder))

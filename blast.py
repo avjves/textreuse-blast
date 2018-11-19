@@ -66,7 +66,7 @@ class SingleBlastRunner:
 		for i in range(1, self.text_count):
 			self.generate_positive_gi_list(i)
 			self.make_query_file(i)
-			subprocess.call(["blastp", "-db", self.output_folder + "/db/textdb", "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "6", "-gapextend", "2", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
+			subprocess.call(["blastp", "-db", self.output_folder + "/db/textdb", "-query", self.query_loc, "-gilist", self.gi_loc, "-out", self.output_folder + "/batches/batch_" + str(i) + ".tsv", "-evalue", str(self.e_value), "-word_size", str(self.word_size), "-gapopen", "3", "-gapextend", "11", "-matrix", "BLOSUM62", "-threshold", "400", "-outfmt", "7 stitle qstart qend sstart send length ppos", "-num_threads", str(self.threads)])
 	## List of queries to compare against, so two queries will never be queried against each other twice
 	def generate_positive_gi_list(self, index):
 		with open(self.output_folder + "/info/pos_gi.txt", "w") as gi_list:
