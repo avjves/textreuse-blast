@@ -23,7 +23,7 @@ class TextEncoder:
 		return processed_text
 
 	'''Encodes text into a protein sequence '''
-	def encode_text(self, text, preprocess=True):
+	def encode_text(self, text, preprocess=False):
 		if preprocess:
 			encoded_text = self.preprocess_text(text)
 		else:
@@ -35,7 +35,7 @@ class TextEncoder:
 
 	''' Masks all character to X that don't have an equivalent in the mapping '''
 	def encode_mask(self, text):
-		return re.sub("[^" + "".join(list(self.mapping.keys())) + "]", "X", text, flags=re.DOTALL)
+		return re.sub("[^" + "".join(list(self.mapping.keys())) + "]", "X", text.lower(), flags=re.DOTALL)
 
 	''' reverse protein mapping, not fully decoded, just using the reverse map here '''
 	def decode_enc_text(self, text):
@@ -45,7 +45,7 @@ class TextEncoder:
 
 
 	''' Calculate back the actual text from the protein sequence indexes '''
-	def decode_text(self, text, start_index, end_index, preprocess=True):
+	def decode_text(self, text, start_index, end_index, preprocess=False):
 		start_index, end_index = int(start_index), int(end_index)-1
 		if preprocess:
 			text = self.preprocess_text(text)
