@@ -1,6 +1,6 @@
 import argparse, sys
 from blast import SingleBlastRunner
-from clusterizer import Clusterizer
+from clusterizer import ClusterizerVol2 as Clusterizer
 from data_preparer import DataPreparer
 from filler import ClusterFiller
 import text_logging
