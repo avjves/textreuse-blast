@@ -21,7 +21,11 @@ class ParallelJobRunner:
 		file_loc = self.output_folder + "/batches/" + filename
 		data = {}
 		if filename.endswith("tar.gz"): ## TAR compressed
-			tarf = tarfile.open(file_loc)
+			try:
+				tarf = tarfile.open(file_loc)
+			except tarfile.ReadError:
+				print("Error reading file {}, skipping".format(filename))
+				return data
 			members = tarf.getmembers()
 			for member in members:
 				if not member.name.endswith(".tsv"): continue
