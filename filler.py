@@ -54,10 +54,9 @@ class ClusterFiller:
 			cfiles = natsorted(os.listdir(self.cluster_folder))
 			for cfile in cfiles:
 				files.append(("", cfile))
-		Parallel(n_jobs=self.threads)(delayed(self.fill_cluster)(folder, filename, index) for index, (folder, filename) in tqdm(enumerate(files)))
+		Parallel(n_jobs=self.threads)(delayed(self.fill_cluster)(folder, filename, index) for index, (folder, filename) in enumerate(files))
 
 	def fill_cluster(self, folder, filename, file_index):
-		print(folder, filename, file_index)
 		if self.custom_data_DBs == None:
 			use_custom_dbs = False
 			orig_db = lmdb.open(self.output_folder + "/db/original_data_DB", readonly=True)
@@ -173,8 +172,6 @@ if __name__ == "__main__":
 	parser.add_argument("--min_count", help="Min count. Dev option.", type=int, default=0)
 
 	args = parser.parse_args()
-	print("Arguments:")
-	print(args)
 
 	cf = ClusterFiller(args.output_folder, args.threads, args.language, args.split_size, args.custom_data_DBs, args.custom_info_DBs, args.custom_unfilled, args.custom_filled, args.min_count)
 	cf.fill_clusters()
