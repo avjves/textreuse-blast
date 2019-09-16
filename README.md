@@ -75,7 +75,7 @@ Data preparer has multiple arguments that must be specified:
 | Argument | Description |
 | --- | --- |
 | `data_location` | Location of the gzipped data files. |
-| `output_location` | Output folder for the data. This folder will be used in subsequent parts as well. |
+| `output_folder` | Output folder for the data. This folder will be used in subsequent parts as well. |
 | `threads` | Number of threads to use. |
 | `language` | Which language the data is in. Currently supports "ENG" and "FIN" out of the box. Others must be manually added. |
 | `split_size` | The size of the splits, if the document should be split into parts. Otherwise, ignore. This is useful if the documents have vastly different lengths, so splitting the data will allow each batch to be approximately same sized. |
