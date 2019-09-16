@@ -6,9 +6,9 @@ The software takes advantage of multiple cores and it can be run in batches, so 
 ## Installation
 
 The software is written in python3, excluding the BLAST part. Thus, python3 must be installed.
-Other libaries used are joblib, natsort and lmdb. These can easily be installed via pip:
+Other libaries used are joblib, natsort, networkx, tqdm and lmdb. These can easily be installed via pip:
 ```
-pip3 install --user joblib natsort lmdb
+pip3 install --user joblib natsort lmdb networkx tqdm
 ```
 
 A modified version of BLAST is also needed to run the software. This can be downloaded from:
