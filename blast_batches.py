@@ -51,7 +51,7 @@ def delete_local_data(local_folder):
 
 def copy_local_data_back(output_folder, batch_folder, iter):
 	if not os.path.exists(batch_folder):
-		os.path.makedirs(batch_folder)
+		os.makedirs(batch_folder)
 	copyfile(output_folder + "/batches/iter_{}.tar.gz".format(iter), batch_folder + "/iter_{}.tar.gz".format(iter))
 
 
